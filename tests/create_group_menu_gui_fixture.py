@@ -1,8 +1,7 @@
 import os
 
-import Part
-
 import FreeCAD as App
+import Part
 
 output_path = os.path.abspath(
     os.path.join(

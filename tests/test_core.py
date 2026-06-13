@@ -4,10 +4,10 @@ import tempfile
 import unittest
 from unittest import mock
 
+import FreeCAD as App
 import Mesh
 import Part
 
-import FreeCAD as App
 from freecad.AutoBodyExport import core as export
 
 

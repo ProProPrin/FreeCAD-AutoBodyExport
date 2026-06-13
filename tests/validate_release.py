@@ -144,7 +144,14 @@ def validate_documentation() -> None:
                 fail(f"broken local link in {markdown_path.name}: {target}")
 
     workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    for required_value in ("1.0.2", "1.1.1", "ruff check", "ruff format --check"):
+    for required_value in (
+        "1.0.2",
+        "1.1.1",
+        "actions/checkout@v6",
+        "actions/setup-python@v6",
+        "ruff check",
+        "ruff format --check",
+    ):
         if required_value not in workflow:
             fail(f"CI workflow is missing required validation: {required_value}")
 

@@ -1,8 +1,7 @@
 import os
 
-import Part
-
 import FreeCAD as App
+import Part
 
 document = App.newDocument("AutoBodyExportObjectFixture")
 part = document.addObject("App::Part", "FixturePart")
