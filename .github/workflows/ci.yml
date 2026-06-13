@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python tests/validate_release.py
+      - run: python -m pip install ruff==0.11.13
+      - run: ruff check .
+      - run: ruff format --check .
+
+  freecad-tests:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: "1.0.2"
+            asset: "FreeCAD_1.0.2-conda-Windows-x86_64-py311.7z"
+          - version: "1.1.1"
+            asset: "FreeCAD_1.1.1-Windows-x86_64-py311.7z"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download FreeCAD
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "freecad-${{ matrix.version }}.7z"
+          $url = "https://github.com/FreeCAD/FreeCAD/releases/download/${{ matrix.version }}/${{ matrix.asset }}"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          7z x $archive "-o$env:RUNNER_TEMP\freecad-${{ matrix.version }}" -y
+      - name: Run tests
+        shell: pwsh
+        run: |
+          $freecad = Get-ChildItem `
+            -Path "$env:RUNNER_TEMP\freecad-${{ matrix.version }}" `
+            -Recurse `
+            -Filter freecadcmd.exe |
+            Select-Object -First 1
+          if ($null -eq $freecad) {
+            throw "freecadcmd.exe was not found"
+          }
+          $env:AUTOBODYEXPORT_TEST_TMP = Join-Path $env:RUNNER_TEMP "autobodyexport-tests"
+          New-Item -ItemType Directory -Force $env:AUTOBODYEXPORT_TEST_TMP | Out-Null
+          & $freecad.FullName tests\run_tests.py
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }

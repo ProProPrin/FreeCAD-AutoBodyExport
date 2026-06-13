@@ -1,0 +1,61 @@
+name: Bug report
+description: Report a reproducible Auto Body Export problem
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include confidential CAD data or private paths.
+  - type: input
+    id: freecad-version
+    attributes:
+      label: FreeCAD version
+      placeholder: "1.1.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: operating-system
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - Linux
+        - macOS
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: addon-version
+    attributes:
+      label: Auto Body Export version
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Use a minimal replacement model when possible.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and Report view output
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Checklist
+      options:
+        - label: I removed confidential model data, credentials, and private paths.
+          required: true
+        - label: I searched existing issues for the same problem.
+          required: true
