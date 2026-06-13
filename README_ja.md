@@ -201,6 +201,11 @@ Ruff、公式FreeCAD 1.0.2・1.1.1によるcoreテストを実行します。
 開発とテスト方法は [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
 脆弱性の疑いは [SECURITY.md](SECURITY.md) に従って非公開で報告してください。
 
+## 開発におけるAI活用
+
+本プロジェクトでは、実装、レビュー、テスト、ドキュメント作成にAIツールを
+活用しています。最終的な判断と検証はmaintainerが行っています。
+
 ## ライセンス
 
 [MIT](LICENSE)

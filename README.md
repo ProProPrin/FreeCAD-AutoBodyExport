@@ -207,6 +207,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and test instructions.
 Report suspected vulnerabilities privately as described in
 [SECURITY.md](SECURITY.md).
 
+## Development disclosure
+
+This project was developed with assistance from AI tools for implementation,
+review, testing, and documentation. Final decisions and verification are
+performed by the maintainer.
+
 ## License
 
 [MIT](LICENSE)
