@@ -2,22 +2,45 @@
 
 import os
 
+import FreeCADGui as Gui
 from PySide import QtCore, QtWidgets
 
-from . import core
+from . import core, i18n
 from .i18n import tr
 
 
-class PreferencesPage:
+class AutoBodyExportPreferencesPage:
     def __init__(self, parent=None):
-        self.form = QtWidgets.QWidget(parent)
+        ui_path = os.path.join(
+            os.path.dirname(__file__),
+            "Resources",
+            "ui",
+            "AutoBodyExportPreferences.ui",
+        )
+        self.form = Gui.PySideUic.loadUi(ui_path)
         self._states_by_path = {}
         self._build_ui()
 
     def _build_ui(self):
-        layout = QtWidgets.QVBoxLayout(self.form)
+        layout = self.form.layout()
+
+        language_group = QtWidgets.QGroupBox(tr("Interface language"))
+        language_layout = QtWidgets.QVBoxLayout(language_group)
+        self.language_combo = QtWidgets.QComboBox()
+        self.language_combo.setObjectName("AutoBodyExportLanguage")
+        self.language_combo.addItem(tr("Follow FreeCAD"), i18n.UI_LANGUAGE_FREECAD)
+        self.language_combo.addItem(tr("English"), i18n.UI_LANGUAGE_ENGLISH)
+        self.language_combo.addItem(tr("Japanese"), i18n.UI_LANGUAGE_JAPANESE)
+        language_layout.addWidget(self.language_combo)
+        language_note = QtWidgets.QLabel(
+            tr("Language changes apply when a new addon dialog is opened.")
+        )
+        language_note.setWordWrap(True)
+        language_layout.addWidget(language_note)
+        layout.addWidget(language_group)
 
         self.enabled_checkbox = QtWidgets.QCheckBox(tr("Enable Auto Body Export globally"))
+        self.enabled_checkbox.setObjectName("AutoBodyExportEnabled")
         enabled_font = self.enabled_checkbox.font()
         enabled_font.setBold(True)
         self.enabled_checkbox.setFont(enabled_font)
@@ -93,6 +116,7 @@ class PreferencesPage:
         self.show_dialog_checkbox = QtWidgets.QCheckBox(
             tr("Show the export selection dialog every time the document is saved")
         )
+        self.show_dialog_checkbox.setObjectName("AutoBodyExportShowDialog")
         display_layout.addWidget(self.show_dialog_checkbox)
         display_note = QtWidgets.QLabel(
             tr(
@@ -132,6 +156,8 @@ class PreferencesPage:
 
     def loadSettings(self):
         options = core.load_export_options()
+        language_index = self.language_combo.findData(i18n.load_ui_language())
+        self.language_combo.setCurrentIndex(max(0, language_index))
         self.enabled_checkbox.setChecked(options.enabled)
         self.step_checkbox.setChecked(options.export_step)
         self.stl_checkbox.setChecked(options.export_stl)
@@ -149,6 +175,7 @@ class PreferencesPage:
         self._reload_states()
 
     def saveSettings(self):
+        i18n.save_ui_language(self.language_combo.currentData())
         if not self.step_checkbox.isChecked() and not self.stl_checkbox.isChecked():
             self.step_checkbox.setChecked(True)
         output_mode = self.output_mode_combo.currentData()

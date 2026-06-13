@@ -14,12 +14,25 @@ import freecad
 REPOSITORY_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OUTPUT_DIRECTORY = os.path.join(REPOSITORY_ROOT, "docs", "images")
 sys.path.insert(0, REPOSITORY_ROOT)
-freecad.__path__ = extend_path(freecad.__path__, freecad.__name__)
+repository_freecad_path = os.path.join(REPOSITORY_ROOT, "freecad")
+freecad.__path__ = [
+    repository_freecad_path,
+    *[
+        path
+        for path in extend_path(freecad.__path__, freecad.__name__)
+        if os.path.normcase(os.path.abspath(path))
+        != os.path.normcase(os.path.abspath(repository_freecad_path))
+    ],
+]
+os.environ["AUTOBODYEXPORT_PARAMETER_PATH"] = (
+    "User parameter:BaseApp/Preferences/Mod/AutoBodyExportScreenshotTests"
+)
 
 from freecad.AutoBodyExport import core as export  # noqa: E402
-from freecad.AutoBodyExport import preferences  # noqa: E402
+from freecad.AutoBodyExport import i18n, preferences  # noqa: E402
 
 QtCore.QLocale.setDefault(QtCore.QLocale("en_US"))
+i18n.save_ui_language(i18n.UI_LANGUAGE_ENGLISH)
 
 
 def save_widget(widget, filename: str) -> None:
@@ -116,7 +129,7 @@ def capture_preferences() -> None:
         skip_unchanged=True,
     )
     try:
-        page = preferences.PreferencesPage()
+        page = preferences.AutoBodyExportPreferencesPage()
         page.form.setWindowTitle("Auto Body Export Preferences")
         page.form.resize(900, 820)
         page.loadSettings()

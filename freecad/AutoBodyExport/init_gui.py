@@ -5,7 +5,7 @@ import os
 import FreeCADGui as Gui
 
 from . import core
-from .preferences import PreferencesPage
+from .preferences import AutoBodyExportPreferencesPage
 
 
 def initialize_gui():
@@ -15,7 +15,7 @@ def initialize_gui():
     if hasattr(Gui, "updateLocale"):
         Gui.updateLocale()
     if hasattr(Gui, "addPreferencePage"):
-        Gui.addPreferencePage(PreferencesPage, "Auto Body Export")
+        Gui.addPreferencePage(AutoBodyExportPreferencesPage, "Auto Body Export")
     return core.initialize()
 
 

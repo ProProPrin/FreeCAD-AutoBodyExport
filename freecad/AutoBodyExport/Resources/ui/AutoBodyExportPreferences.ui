@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>AutoBodyExportPreferences</class>
+ <widget class="QWidget" name="AutoBodyExportPreferences">
+  <property name="windowTitle">
+   <string>Auto Body Export</string>
+  </property>
+  <layout class="QVBoxLayout" name="preferencesLayout"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

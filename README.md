@@ -135,6 +135,7 @@ a hash suffix.
 
 Open **Edit > Preferences > Auto Body Export** to configure:
 
+- interface language: follow FreeCAD, English, or Japanese;
 - global enable/disable;
 - STEP and STL output;
 - output beside each document or under a custom directory;

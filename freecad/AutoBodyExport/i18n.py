@@ -1,8 +1,30 @@
 """Small runtime translation layer for addon-owned widgets."""
 
+import os
+
+import FreeCAD as App
 from PySide import QtCore
 
+GENERAL_PREFERENCES_PATH = "User parameter:BaseApp/Preferences/General"
+DEFAULT_ADDON_PARAMETER_PATH = "User parameter:BaseApp/Preferences/Mod/AutoBodyExport"
+UI_LANGUAGE_KEY = "UILanguage"
+UI_LANGUAGE_FREECAD = "freecad"
+UI_LANGUAGE_ENGLISH = "en"
+UI_LANGUAGE_JAPANESE = "ja"
+UI_LANGUAGE_VALUES = {
+    UI_LANGUAGE_FREECAD,
+    UI_LANGUAGE_ENGLISH,
+    UI_LANGUAGE_JAPANESE,
+}
+
 _JA = {
+    "Interface language": "表示言語",
+    "Follow FreeCAD": "FreeCADの設定に従う",
+    "English": "英語",
+    "Japanese": "日本語",
+    "Language changes apply when a new addon dialog is opened.": (
+        "言語の変更は、次にアドオンの画面を開いたときに反映されます。"
+    ),
     "Enable Auto Body Export globally": "Auto Body Exportを全体で有効にする",
     "Enable automatic export for this document": "このドキュメントの自動出力を有効にする",
     (
@@ -80,9 +102,49 @@ _JA = {
 }
 
 
+def _addon_preferences():
+    parameter_path = os.environ.get("AUTOBODYEXPORT_PARAMETER_PATH", DEFAULT_ADDON_PARAMETER_PATH)
+    return App.ParamGet(parameter_path)
+
+
+def load_ui_language():
+    language = _addon_preferences().GetString(UI_LANGUAGE_KEY, UI_LANGUAGE_FREECAD)
+    return language if language in UI_LANGUAGE_VALUES else UI_LANGUAGE_FREECAD
+
+
+def save_ui_language(language):
+    if language not in UI_LANGUAGE_VALUES:
+        language = UI_LANGUAGE_FREECAD
+    _addon_preferences().SetString(UI_LANGUAGE_KEY, language)
+
+
+def _language_code(configured_language, fallback_locale):
+    """Return the addon language for a FreeCAD language setting."""
+    language = configured_language.strip().lower().replace("_", "-")
+    if language:
+        return "ja" if language in {"ja", "japanese"} or language.startswith("ja-") else "en"
+    locale = fallback_locale.strip().lower().replace("_", "-")
+    return "ja" if locale == "ja" or locale.startswith("ja-") else "en"
+
+
+def _configured_freecad_language():
+    return App.ParamGet(GENERAL_PREFERENCES_PATH).GetString("Language", "")
+
+
+def _current_locale_name():
+    return QtCore.QLocale().name()
+
+
+def current_language_code():
+    """Return Japanese only when FreeCAD is using Japanese."""
+    override = load_ui_language()
+    if override != UI_LANGUAGE_FREECAD:
+        return override
+    return _language_code(_configured_freecad_language(), _current_locale_name())
+
+
 def tr(text):
-    """Translate an addon-owned source string for the active locale."""
-    locale = QtCore.QLocale().name().lower()
-    if locale.startswith("ja"):
+    """Translate addon-owned English source text for FreeCAD's UI language."""
+    if current_language_code() == "ja":
         return _JA.get(text, text)
     return text

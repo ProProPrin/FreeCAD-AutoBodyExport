@@ -7,6 +7,16 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Prevented the Auto Body Export preferences page from colliding with FreeCAD's
+  Assembly preferences page.
+- Restored the export selection dialog after saving when the global and
+  per-save dialog options are enabled.
+- Made addon-owned UI text follow FreeCAD's language setting: Japanese for
+  Japanese and English for every other language.
+- Added a preferences override for following FreeCAD, English, or Japanese.
+
 ## [1.0.0] - 2026-06-13
 
 ### Added

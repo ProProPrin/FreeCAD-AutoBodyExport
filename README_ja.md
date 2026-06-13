@@ -133,6 +133,7 @@ stl/
 
 **Edit > Preferences > Auto Body Export** で次を設定できます。
 
+- 表示言語（FreeCADの設定に従う、英語、日本語）
 - アドオン全体の有効・無効
 - STEPとSTLの出力
 - 各ドキュメントの隣または共通ディレクトリへの出力

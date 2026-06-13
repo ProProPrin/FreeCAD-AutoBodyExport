@@ -5,6 +5,8 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.uv-cache/
+.uv-tools/
 .coverage
 .coverage.*
 htmlcov/
@@ -30,6 +32,7 @@ old_versions/
 
 # Test output
 tests/tmp*/
+.test-tmp-*/
 
 # Editors and operating systems
 .idea/
