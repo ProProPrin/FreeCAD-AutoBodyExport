@@ -8,9 +8,6 @@ STEP、STL、または両方へ出力する拡張機能です。
 
 ![出力対象選択ダイアログ](https://raw.githubusercontent.com/ProProPrin/FreeCAD-AutoBodyExport/main/docs/images/selection-dialog-ja.png)
 
-このREADMEのスクリーンショットは、実際のFreeCAD 1.1のQt画面から直接取得
-したもので、AI生成画像ではありません。
-
 ## 主な機能
 
 - ドキュメントの保存成功後にSTEP、STL、または両方を出力
