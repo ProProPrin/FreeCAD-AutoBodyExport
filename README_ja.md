@@ -6,7 +6,10 @@ Auto Body Exportは、FreeCADドキュメントの保存後に、選択した
 `PartDesign::Body` と `App::Part` 内の独立した形状オブジェクトを
 STEP、STL、または両方へ出力する拡張機能です。
 
-![出力対象選択ダイアログ](https://raw.githubusercontent.com/ProProPrin/FreeCAD-AutoBodyExport/main/docs/images/selection-dialog.png)
+![出力対象選択ダイアログ](https://raw.githubusercontent.com/ProProPrin/FreeCAD-AutoBodyExport/main/docs/images/selection-dialog-ja.png)
+
+このREADMEのスクリーンショットは、実際のFreeCAD 1.1のQt画面から直接取得
+したもので、AI生成画像ではありません。
 
 ## 主な機能
 
@@ -143,7 +146,7 @@ stl/
 - 保存ごとに選択ダイアログを表示するか
 - 既知のCADファイルごとの有効状態、選択数、管理ファイル数
 
-![Auto Body Export設定](https://raw.githubusercontent.com/ProProPrin/FreeCAD-AutoBodyExport/main/docs/images/preferences.png)
+![Auto Body Export設定](https://raw.githubusercontent.com/ProProPrin/FreeCAD-AutoBodyExport/main/docs/images/preferences-ja.png)
 
 通常時のダイアログを無効にしても、新しいPart、Body、独立オブジェクトを
 検出した場合は再表示します。初回ダイアログで無効にしたドキュメントは、

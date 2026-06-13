@@ -8,6 +8,9 @@ containers after a document is saved.
 
 ![Export selection dialog](https://raw.githubusercontent.com/ProProPrin/FreeCAD-AutoBodyExport/main/docs/images/selection-dialog.png)
 
+The screenshots in this README are captured directly from the actual FreeCAD
+1.1 Qt interface. They are not AI-generated images.
+
 ## Features
 
 - Export STEP, STL, or both after a successful document save.

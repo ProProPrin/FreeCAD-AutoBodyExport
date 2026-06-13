@@ -32,7 +32,6 @@ from freecad.AutoBodyExport import core as export  # noqa: E402
 from freecad.AutoBodyExport import i18n, preferences  # noqa: E402
 
 QtCore.QLocale.setDefault(QtCore.QLocale("en_US"))
-i18n.save_ui_language(i18n.UI_LANGUAGE_ENGLISH)
 
 
 def save_widget(widget, filename: str) -> None:
@@ -48,24 +47,52 @@ def save_widget(widget, filename: str) -> None:
     widget.close()
 
 
-def capture_selection_dialog() -> None:
+def capture_selection_dialog(language: str, filename: str) -> None:
+    i18n.save_ui_language(language)
+    is_japanese = language == i18n.UI_LANGUAGE_JAPANESE
     inventory = export.Inventory(
         parts=(
-            export.PartInfo("Frame", "Frame Assembly", None),
-            export.PartInfo("Cover", "Cover", None),
+            export.PartInfo(
+                "Frame",
+                "フレームアセンブリ" if is_japanese else "Frame Assembly",
+                None,
+            ),
+            export.PartInfo("Cover", "カバー" if is_japanese else "Cover", None),
         ),
         bodies=(
-            export.BodyInfo("MainBody", "Main Body", "part:Frame"),
-            export.BodyInfo("Bracket", "Mounting Bracket", "part:Frame"),
-            export.BodyInfo("CoverBody", "Cover Body", "part:Cover"),
+            export.BodyInfo(
+                "MainBody",
+                "メインボディ" if is_japanese else "Main Body",
+                "part:Frame",
+            ),
+            export.BodyInfo(
+                "Bracket",
+                "取付ブラケット" if is_japanese else "Mounting Bracket",
+                "part:Frame",
+            ),
+            export.BodyInfo(
+                "CoverBody",
+                "カバーボディ" if is_japanese else "Cover Body",
+                "part:Cover",
+            ),
         ),
         objects=(
-            export.ObjectInfo("Pin", "Alignment Pin", "Part::Feature", "part:Frame"),
-            export.ObjectInfo("Plate", "Reference Plate", "Part::Feature", "part:Frame"),
+            export.ObjectInfo(
+                "Pin",
+                "位置決めピン" if is_japanese else "Alignment Pin",
+                "Part::Feature",
+                "part:Frame",
+            ),
+            export.ObjectInfo(
+                "Plate",
+                "参照プレート" if is_japanese else "Reference Plate",
+                "Part::Feature",
+                "part:Frame",
+            ),
         ),
     )
     dialog = export.SelectionDialog(
-        document_label="Assembly Example",
+        document_label="アセンブリ例" if is_japanese else "Assembly Example",
         inventory=inventory,
         selected_target_ids={
             "body:MainBody",
@@ -86,15 +113,17 @@ def capture_selection_dialog() -> None:
         document_enabled=True,
     )
     dialog.dialog.resize(1000, 650)
-    save_widget(dialog.dialog, "selection-dialog.png")
+    save_widget(dialog.dialog, filename)
 
 
-def capture_preferences() -> None:
+def capture_preferences(language: str, filename: str) -> None:
+    i18n.save_ui_language(language)
+    is_japanese = language == i18n.UI_LANGUAGE_JAPANESE
     original_list_document_states = export.list_document_states
     original_load_export_options = export.load_export_options
     export.list_document_states = lambda: [
         export.DocumentState(
-            path=r"C:\Models\assembly.FCStd",
+            path=(r"C:\Models\アセンブリ.FCStd" if is_japanese else r"C:\Models\assembly.FCStd"),
             known_item_ids={
                 "part:Frame",
                 "body:MainBody",
@@ -130,10 +159,12 @@ def capture_preferences() -> None:
     )
     try:
         page = preferences.AutoBodyExportPreferencesPage()
-        page.form.setWindowTitle("Auto Body Export Preferences")
+        page.form.setWindowTitle(
+            "Auto Body Export 設定" if is_japanese else "Auto Body Export Preferences"
+        )
         page.form.resize(900, 820)
         page.loadSettings()
-        save_widget(page.form, "preferences.png")
+        save_widget(page.form, filename)
     finally:
         export.list_document_states = original_list_document_states
         export.load_export_options = original_load_export_options
@@ -141,8 +172,13 @@ def capture_preferences() -> None:
 
 def main() -> None:
     os.makedirs(OUTPUT_DIRECTORY, exist_ok=True)
-    capture_selection_dialog()
-    capture_preferences()
+    try:
+        capture_selection_dialog(i18n.UI_LANGUAGE_ENGLISH, "selection-dialog.png")
+        capture_preferences(i18n.UI_LANGUAGE_ENGLISH, "preferences.png")
+        capture_selection_dialog(i18n.UI_LANGUAGE_JAPANESE, "selection-dialog-ja.png")
+        capture_preferences(i18n.UI_LANGUAGE_JAPANESE, "preferences-ja.png")
+    finally:
+        i18n.save_ui_language(i18n.UI_LANGUAGE_FREECAD)
     print(f"Saved documentation screenshots to {OUTPUT_DIRECTORY}")
     QtCore.QTimer.singleShot(0, QtWidgets.QApplication.instance().quit)
     Gui.getMainWindow().close()
