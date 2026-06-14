@@ -2,19 +2,30 @@
 
 ## Supported versions
 
-Security fixes are provided for the latest released version.
+Security fixes are provided for the latest released version of Auto Body
+Export. Upgrade to the latest release before reporting a problem when
+possible.
 
-## Reporting a vulnerability
+## Report a vulnerability
 
-Do not open a public issue for a suspected vulnerability.
+Do not open a public issue or discussion for a suspected vulnerability.
 
-Use GitHub's private vulnerability reporting for this repository:
+1. Open
+   [GitHub private vulnerability reporting](https://github.com/ProProPrin/FreeCAD-AutoBodyExport/security/advisories/new).
+2. Describe the affected Auto Body Export, FreeCAD, and operating-system
+   versions.
+3. Provide minimal reproduction steps, expected behavior, actual behavior, and
+   potential impact.
+4. Include relevant Report view output only after removing private paths,
+   credentials, and confidential CAD data.
+5. Use a minimal replacement model instead of a production CAD document.
 
-https://github.com/ProProPrin/FreeCAD-AutoBodyExport/security/advisories/new
+## Response and disclosure
 
-Include the affected version, FreeCAD version, operating system, reproduction
-steps, and impact. Remove private CAD data, credentials, and personal paths
-from any logs or sample files.
+You should receive an initial response within seven days. The maintainer will
+confirm the report, request additional information if needed, and coordinate a
+fix and disclosure timeline.
 
-You should receive an initial response within seven days. A confirmed issue
-will be fixed and disclosed after a corrected release is available.
+Confirmed vulnerabilities will be disclosed after a corrected release is
+available. Please avoid public disclosure until users have had a reasonable
+opportunity to update.

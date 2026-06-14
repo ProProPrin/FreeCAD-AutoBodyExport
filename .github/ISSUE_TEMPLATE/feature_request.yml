@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest an improvement to Auto Body Export
+description: Suggest an improvement to an Auto Body Export workflow
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
@@ -7,16 +7,50 @@ body:
     id: problem
     attributes:
       label: Problem or workflow
-      description: Explain the CAD/export workflow this would improve.
+      description: Explain the CAD/export workflow and the limitation you encounter.
     validations:
       required: true
+
+  - type: dropdown
+    id: affected-area
+    attributes:
+      label: Affected area
+      options:
+        - Target selection or grouping
+        - STEP output
+        - STL output
+        - Output location or filenames
+        - History or file safety
+        - Preferences or localization
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: document-structure
+    attributes:
+      label: Relevant document structure
+      description: Describe any Parts, Bodies, independent objects, or groups involved.
+
   - type: textarea
     id: proposal
     attributes:
       label: Proposed behavior
+      description: Describe the result and user interaction you expect.
     validations:
       required: true
+
   - type: textarea
     id: alternatives
     attributes:
       label: Alternatives considered
+      description: Describe current workarounds or other designs you considered.
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety
+      options:
+        - label: This request contains no confidential model data, credentials, or private paths.
+          required: true

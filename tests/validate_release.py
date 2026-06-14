@@ -14,6 +14,8 @@ REQUIRED_FILES = (
     "README.md",
     "README_ja.md",
     "Overview.md",
+    "docs/USER_GUIDE.md",
+    "docs/USER_GUIDE_ja.md",
     "LICENSE",
     "CHANGELOG.md",
     "SECURITY.md",
@@ -27,6 +29,25 @@ REQUIRED_FILES = (
     ".github/workflows/ci.yml",
 )
 RAW_REPOSITORY_URL = "https://raw.githubusercontent.com/ProProPrin/FreeCAD-AutoBodyExport/main/"
+LOCAL_IMAGE_DOCUMENTS = {
+    "README.md": 1,
+    "README_ja.md": 1,
+    "docs/USER_GUIDE.md": 2,
+    "docs/USER_GUIDE_ja.md": 2,
+}
+IGNORED_DOCUMENTATION_DIRECTORIES = {
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".uv-cache",
+    ".uv-tools",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "venv",
+}
 
 
 def fail(message: str) -> None:
@@ -117,31 +138,48 @@ def validate_documentation() -> None:
         if not (REPOSITORY_ROOT / relative_path).is_file():
             fail(f"required release file is missing: {relative_path}")
 
+    overview_path = REPOSITORY_ROOT / "Overview.md"
     overview_image_urls = re.findall(
         r"!\[[^\]]*\]\(([^)]+)\)",
-        (REPOSITORY_ROOT / "Overview.md").read_text(encoding="utf-8"),
+        overview_path.read_text(encoding="utf-8"),
     )
     if len(overview_image_urls) < 2:
         fail("Overview.md must contain the selection and preferences images")
-    documentation_files = ("Overview.md", "README.md", "README_ja.md")
-    for documentation_file in documentation_files:
-        content = (REPOSITORY_ROOT / documentation_file).read_text(encoding="utf-8")
-        image_urls = re.findall(r"!\[[^\]]*\]\(([^)]+)\)", content)
-        for image_url in image_urls:
-            if not image_url.startswith(RAW_REPOSITORY_URL):
-                fail(f"{documentation_file} image must use the repository raw URL: {image_url}")
-            relative_path = image_url.removeprefix(RAW_REPOSITORY_URL)
-            if not (REPOSITORY_ROOT / relative_path).is_file():
-                fail(f"documented image does not exist: {relative_path}")
+    for image_url in overview_image_urls:
+        if not image_url.startswith(RAW_REPOSITORY_URL):
+            fail(f"Overview.md image must use the repository raw URL: {image_url}")
+        relative_path = image_url.removeprefix(RAW_REPOSITORY_URL)
+        if not (REPOSITORY_ROOT / relative_path).is_file():
+            fail(f"documented image does not exist: {relative_path}")
 
-    for markdown_path in REPOSITORY_ROOT.glob("*.md"):
+    for documentation_file, minimum_image_count in LOCAL_IMAGE_DOCUMENTS.items():
+        markdown_path = REPOSITORY_ROOT / documentation_file
+        content = markdown_path.read_text(encoding="utf-8")
+        image_urls = re.findall(r"!\[[^\]]*\]\(([^)]+)\)", content)
+        if len(image_urls) < minimum_image_count:
+            fail(
+                f"{documentation_file} must contain at least "
+                f"{minimum_image_count} documentation images"
+            )
+        for image_url in image_urls:
+            if image_url.startswith(("http://", "https://")):
+                fail(f"{documentation_file} image must use a relative path: {image_url}")
+            image_path = markdown_path.parent / image_url.split("#", 1)[0]
+            if not image_path.is_file():
+                fail(f"documented image does not exist: {documentation_file} -> {image_url}")
+
+    for markdown_path in REPOSITORY_ROOT.rglob("*.md"):
+        relative_parts = markdown_path.relative_to(REPOSITORY_ROOT).parts
+        if any(part in IGNORED_DOCUMENTATION_DIRECTORIES for part in relative_parts):
+            continue
         content = markdown_path.read_text(encoding="utf-8")
         for target in re.findall(r"(?<!!)\[[^\]]+\]\(([^)]+)\)", content):
             if target.startswith(("http://", "https://", "#", "mailto:")):
                 continue
             relative_path = target.split("#", 1)[0]
             if relative_path and not (markdown_path.parent / relative_path).exists():
-                fail(f"broken local link in {markdown_path.name}: {target}")
+                document = markdown_path.relative_to(REPOSITORY_ROOT)
+                fail(f"broken local link in {document}: {target}")
 
     workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     for required_value in (

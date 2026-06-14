@@ -7,6 +7,14 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Reorganized the English and Japanese documentation around concise READMEs
+  and complete user guides, with clearer setup, configuration, output safety,
+  and troubleshooting information.
+- Expanded contribution, security, issue, and pull request guidance so reports
+  and changes include the context needed for reliable verification.
+
 ### Fixed
 
 - Prevented the Auto Body Export preferences page from colliding with FreeCAD's

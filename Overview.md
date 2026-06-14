@@ -1,35 +1,32 @@
 # Auto Body Export
 
 Automatically export selected FreeCAD Bodies and independent Part objects to
-STEP, STL, or both whenever a document is saved.
+STEP, STL, or both after every successful document save.
 
 ![Export selection dialog](https://raw.githubusercontent.com/ProProPrin/FreeCAD-AutoBodyExport/main/docs/images/selection-dialog.png)
 
 ## Highlights
 
-- Explicit global and per-document opt-in. Installation alone never starts
-  writing export files.
-- Per-document target selection with grouped export for targets in the same
-  `App::Part`.
-- Collision-safe filenames, unmanaged-file protection, and bounded history.
-- Optional custom output directory and filename template.
-- Configurable STL mesh precision, progress display, and unchanged-geometry
-  skipping.
-- English and Japanese UI text.
+- Per-document target selection with optional grouped output inside the same
+  `App::Part`
+- Explicit global and document-level enable controls
+- Stable current filenames with bounded `old_versions/vN/` history
+- Protection for files not created by the addon
+- Custom output directory, filename template, STL quality, and language
+  settings
+- Unchanged-geometry detection and optional progress display
 
-![Preferences](https://raw.githubusercontent.com/ProProPrin/FreeCAD-AutoBodyExport/main/docs/images/preferences.png)
+![Auto Body Export preferences](https://raw.githubusercontent.com/ProProPrin/FreeCAD-AutoBodyExport/main/docs/images/preferences.png)
 
-## Quick start
+## Start exporting
 
-1. Open **Edit > Preferences > Auto Body Export**.
-2. Enable **Auto Body Export globally** and choose the output settings.
-3. Save an `.FCStd` document.
-4. Enable automatic export for that document and select the targets.
+1. Install the addon and restart FreeCAD.
+2. Open **Edit > Preferences > Auto Body Export**.
+3. Enable the addon globally and select STEP, STL, or both.
+4. Save an `.FCStd` document and select its export targets.
 
-By default, the addon writes current files to `step/` and `stl/` beside the
-document. Replaced and obsolete managed files are moved under
-`old_versions/vN/`. Files that were not created by the addon are never
-overwritten.
+Auto Body Export is disabled by default. Installation alone does not create
+files, and existing files not managed by the addon are never overwritten.
 
-See the [full documentation](https://github.com/ProProPrin/FreeCAD-AutoBodyExport#readme)
-for installation, settings, output rules, testing, and troubleshooting.
+[Full documentation](https://github.com/ProProPrin/FreeCAD-AutoBodyExport#readme)
+| [日本語](https://github.com/ProProPrin/FreeCAD-AutoBodyExport/blob/main/README_ja.md)

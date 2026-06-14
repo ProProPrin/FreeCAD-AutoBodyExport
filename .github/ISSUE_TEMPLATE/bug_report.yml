@@ -5,14 +5,27 @@ labels: ["bug"]
 body:
   - type: markdown
     attributes:
-      value: Do not include confidential CAD data or private paths.
+      value: |
+        Thanks for providing a reproducible report.
+        Do not include confidential CAD data, credentials, or private paths.
+
   - type: input
     id: freecad-version
     attributes:
       label: FreeCAD version
+      description: Include the full version shown by FreeCAD.
       placeholder: "1.1.1"
     validations:
       required: true
+
+  - type: input
+    id: addon-version
+    attributes:
+      label: Auto Body Export version
+      placeholder: "1.0.0 or commit SHA"
+    validations:
+      required: true
+
   - type: dropdown
     id: operating-system
     attributes:
@@ -24,37 +37,86 @@ body:
         - Other
     validations:
       required: true
-  - type: input
-    id: addon-version
+
+  - type: dropdown
+    id: output-format
     attributes:
-      label: Auto Body Export version
-      placeholder: "1.0.0"
+      label: Output format
+      options:
+        - STEP
+        - STL
+        - STEP and STL
+        - Not format-specific
     validations:
       required: true
+
+  - type: dropdown
+    id: output-mode
+    attributes:
+      label: Output mode
+      options:
+        - Beside each document
+        - Custom directory
+        - Both modes
+        - Not output-specific
+    validations:
+      required: true
+
+  - type: textarea
+    id: document-structure
+    attributes:
+      label: Minimal document structure
+      description: Describe the relevant Parts, Bodies, independent objects, and groups.
+      placeholder: |
+        Assembly (App::Part)
+        - Frame (PartDesign::Body)
+        - Bracket (PartDesign::Body)
+        Group: Frame + Bracket
+    validations:
+      required: true
+
   - type: textarea
     id: steps
     attributes:
       label: Reproduction steps
-      description: Use a minimal replacement model when possible.
+      description: Use a new or minimal replacement model whenever possible.
+      placeholder: |
+        1. Enable ...
+        2. Save ...
+        3. Select ...
     validations:
       required: true
+
   - type: textarea
     id: expected
     attributes:
       label: Expected behavior
     validations:
       required: true
+
   - type: textarea
     id: actual
     attributes:
-      label: Actual behavior and Report view output
+      label: Actual behavior
     validations:
       required: true
+
+  - type: textarea
+    id: report-view
+    attributes:
+      label: FreeCAD Report view output
+      description: Remove private paths, credentials, and confidential model data.
+      render: text
+    validations:
+      required: true
+
   - type: checkboxes
     id: confirmation
     attributes:
-      label: Checklist
+      label: Safety checklist
       options:
+        - label: I reproduced this with a minimal or non-confidential document where possible.
+          required: true
         - label: I removed confidential model data, credentials, and private paths.
           required: true
         - label: I searched existing issues for the same problem.

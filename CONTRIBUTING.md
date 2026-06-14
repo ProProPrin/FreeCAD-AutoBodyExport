@@ -1,49 +1,69 @@
 # Contributing
 
-Contributions and reproducible bug reports are welcome.
+Contributions and reproducible bug reports are welcome. Keep changes focused,
+preserve the addon's file-safety guarantees, and include verification that
+matches the affected behavior.
+
+## Getting started
+
+1. Clone the repository.
+2. Install or link it as FreeCAD's user `Mod/AutoBodyExport` directory.
+3. Restart FreeCAD after changing addon initialization or GUI registration.
+4. Confirm that **Edit > Preferences > Auto Body Export** is available.
+
+FreeCAD's user application directory is available from its Python console:
+
+```python
+FreeCAD.getUserAppDataDir()
+```
+
+## Repository layout
+
+| Path | Purpose |
+| --- | --- |
+| `freecad/AutoBodyExport/` | Runtime, preferences, and localization code |
+| `Init.py`, `InitGui.py` | Compatibility entry points loaded by FreeCAD |
+| `tests/` | Core, localization, GUI, and release validation |
+| `tools/capture_docs_screenshots.py` | Documentation screenshot capture |
+| `docs/` | User guides and documentation images |
+| `package.xml` | FreeCAD Addon Manager metadata |
+
+Match the existing code style and add focused tests for behavior changes. Do
+not weaken:
+
+- global and document-level opt-in;
+- protection for unmanaged files;
+- managed-path validation;
+- temporary-file replacement and rollback;
+- delayed retirement of obsolete managed exports.
 
 ## Reporting issues
 
-Use the issue templates and include:
+Use the appropriate GitHub issue form and provide:
 
-- FreeCAD, addon, and operating-system versions;
-- the affected export format and output mode;
-- a minimal description of the relevant document structure;
-- exact reproduction steps;
-- FreeCAD Report view output with private paths removed.
+- FreeCAD, Auto Body Export, and operating-system versions;
+- output format and output mode;
+- a minimal description of the relevant Part/Body/object structure;
+- exact reproduction steps and expected behavior;
+- actual behavior and FreeCAD Report view output.
 
-Do not attach confidential CAD documents. Use a minimal replacement model.
-Report security issues privately according to [SECURITY.md](SECURITY.md).
+Remove private paths, credentials, and confidential model data. Do not attach
+production CAD files; create a minimal replacement model instead. Report
+suspected vulnerabilities privately according to [SECURITY.md](SECURITY.md).
 
-## Development setup
+## Validation
 
-Install the repository in FreeCAD's user `Mod/AutoBodyExport` directory, or
-link that directory to your checkout. Restart FreeCAD after changing addon
-initialization code.
-
-Runtime code lives in `freecad/AutoBodyExport/`. Top-level `Init.py` and
-`InitGui.py` are compatibility entry points loaded by FreeCAD.
-
-Match the existing style, keep changes focused, and add tests for behavior
-changes. Do not weaken the global/document opt-in, unmanaged-file protection,
-managed-path validation, or failure recovery.
-
-## Checks
-
-Run release validation:
+### Release and style checks
 
 ```powershell
 python tests\validate_release.py
-```
-
-Run Ruff when available:
-
-```powershell
 ruff check .
 ruff format --check .
 ```
 
-Run tests with both supported FreeCAD lines:
+### FreeCAD core tests
+
+Run the suite with both supported FreeCAD lines:
 
 ```powershell
 $env:AUTOBODYEXPORT_TEST_TMP = "C:\tmp\autobodyexport-tests"
@@ -51,18 +71,20 @@ $env:AUTOBODYEXPORT_TEST_TMP = "C:\tmp\autobodyexport-tests"
 & "C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe" tests\run_tests.py
 ```
 
-The runner uses `AutoBodyExportTests` as its FreeCAD parameter namespace and
+The runner uses the isolated `AutoBodyExportTests` parameter namespace and
 exits nonzero on failure.
 
-For UI changes, regenerate the real widget screenshots and inspect them:
+### GUI changes
+
+Regenerate and inspect the real English and Japanese widgets:
 
 ```powershell
 & "C:\Program Files\FreeCAD 1.1\bin\FreeCAD.exe" `
   tools\capture_docs_screenshots.py
 ```
 
-Verify automatic addon startup and the primary widgets from an installed or
-linked `Mod/AutoBodyExport` directory:
+Verify automatic startup and the primary widgets from an installed or linked
+`Mod/AutoBodyExport` directory:
 
 ```powershell
 $env:AUTOBODYEXPORT_REQUIRE_STARTUP_LOAD = "1"
@@ -71,12 +93,16 @@ $env:AUTOBODYEXPORT_GUI_RESULT = "C:\tmp\autobodyexport-gui-result.txt"
 Get-Content $env:AUTOBODYEXPORT_GUI_RESULT
 ```
 
-Also verify that saving an opted-in document creates valid STEP/STL output.
+Also save an opted-in document and confirm that valid STEP/STL output is
+created. UI changes must keep the English and Japanese screenshots current.
 
 ## Pull requests
 
-- Keep each pull request focused on one behavior.
-- Describe user-visible changes and exact verification performed.
-- Update `CHANGELOG.md` when the change is release-relevant.
-- Update both READMEs when user-facing behavior changes.
-- Do not commit `.FCStd`, STEP, STL, backup, cache, log, or private model files.
+- Explain the user-visible behavior and why it changed.
+- List the exact commands and FreeCAD versions used for verification.
+- Add or update tests for behavior changes.
+- Update `CHANGELOG.md` for release-relevant changes.
+- Update both READMEs and both user guides when user-facing behavior changes.
+- Include regenerated screenshots when documented UI changes.
+- Do not commit `.FCStd`, STEP, STL, backup, cache, log, generated output, or
+  private path data.

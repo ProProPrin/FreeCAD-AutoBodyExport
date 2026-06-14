@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no" ?>
 <package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
   <name>Auto Body Export</name>
-  <description>Automatically exports selected Bodies and Part objects to STEP or STL after a document is saved.</description>
+  <description>Exports selected FreeCAD Bodies and Part objects to STEP or STL after every successful document save.</description>
   <version>1.0.0</version>
   <date>2026-06-13</date>
   <maintainer email="161804086+ProProPrin@users.noreply.github.com">ProProPrin</maintainer>
