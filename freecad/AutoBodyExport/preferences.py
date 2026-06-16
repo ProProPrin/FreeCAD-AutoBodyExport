@@ -69,29 +69,38 @@ class AutoBodyExportPreferencesPage:
         output_layout.addWidget(self.custom_output_edit, 1, 0, 1, 2)
         output_layout.addWidget(self.custom_output_button, 1, 2)
 
-        output_layout.addWidget(QtWidgets.QLabel(tr("Filename template")), 2, 0)
+        output_note = QtWidgets.QLabel(
+            tr(
+                "Use {document_dir} for the current document directory, "
+                "{document_parent_dir} for its parent, or .. for relative paths."
+            )
+        )
+        output_note.setWordWrap(True)
+        output_layout.addWidget(output_note, 2, 0, 1, 3)
+
         self.filename_template_edit = QtWidgets.QLineEdit()
-        output_layout.addWidget(self.filename_template_edit, 2, 1, 1, 2)
+        output_layout.addWidget(self.filename_template_edit, 3, 1, 1, 2)
         template_note = QtWidgets.QLabel(
             tr("Available fields: {document}, {part}, {target}, {name}")
         )
         template_note.setWordWrap(True)
-        output_layout.addWidget(template_note, 3, 0, 1, 3)
+        output_layout.addWidget(QtWidgets.QLabel(tr("Filename template")), 3, 0)
+        output_layout.addWidget(template_note, 4, 0, 1, 3)
 
-        output_layout.addWidget(QtWidgets.QLabel(tr("History versions to keep")), 4, 0)
+        output_layout.addWidget(QtWidgets.QLabel(tr("History versions to keep")), 5, 0)
         self.history_limit_spin = QtWidgets.QSpinBox()
         self.history_limit_spin.setRange(0, 1000)
-        output_layout.addWidget(self.history_limit_spin, 4, 1)
+        output_layout.addWidget(self.history_limit_spin, 5, 1)
         history_note = QtWidgets.QLabel(tr("Use 0 to replace files without keeping history."))
         history_note.setWordWrap(True)
-        output_layout.addWidget(history_note, 5, 0, 1, 3)
+        output_layout.addWidget(history_note, 6, 0, 1, 3)
 
         self.skip_unchanged_checkbox = QtWidgets.QCheckBox(
             tr("Skip exports when geometry and settings are unchanged")
         )
-        output_layout.addWidget(self.skip_unchanged_checkbox, 6, 0, 1, 3)
+        output_layout.addWidget(self.skip_unchanged_checkbox, 7, 0, 1, 3)
         self.show_progress_checkbox = QtWidgets.QCheckBox(tr("Show progress while exporting"))
-        output_layout.addWidget(self.show_progress_checkbox, 7, 0, 1, 3)
+        output_layout.addWidget(self.show_progress_checkbox, 8, 0, 1, 3)
         layout.addWidget(output_group)
 
         stl_group = QtWidgets.QGroupBox(tr("STL quality"))
@@ -136,13 +145,14 @@ class AutoBodyExportPreferencesPage:
         states_group = QtWidgets.QGroupBox(tr("Saved selections by CAD file"))
         states_layout = QtWidgets.QVBoxLayout(states_group)
         self.states_tree = QtWidgets.QTreeWidget()
-        self.states_tree.setColumnCount(4)
+        self.states_tree.setColumnCount(5)
         self.states_tree.setHeaderLabels(
             [
                 tr("CAD file"),
                 tr("Enabled"),
                 tr("Selected targets"),
                 tr("Managed files"),
+                tr("Output"),
             ]
         )
         self.states_tree.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
@@ -187,7 +197,13 @@ class AutoBodyExportPreferencesPage:
             self.step_checkbox.setChecked(True)
         output_mode = self.output_mode_combo.currentData()
         custom_directory = self.custom_output_edit.text().strip()
-        if output_mode == core.OUTPUT_MODE_CUSTOM and not custom_directory:
+        if (
+            output_mode == core.OUTPUT_MODE_CUSTOM
+            and (
+                not custom_directory
+                or not core.validate_output_directory_template(custom_directory)
+            )
+        ):
             output_mode = core.OUTPUT_MODE_DOCUMENT
             self.output_mode_combo.setCurrentIndex(
                 self.output_mode_combo.findData(core.OUTPUT_MODE_DOCUMENT)
@@ -237,6 +253,24 @@ class AutoBodyExportPreferencesPage:
 
     def _browse_output_directory(self):
         start_directory = self.custom_output_edit.text().strip()
+        if start_directory and core.validate_output_directory_template(start_directory):
+            if core.output_directory_uses_template(start_directory):
+                active_document = getattr(Gui, "ActiveDocument", None)
+                active_path = getattr(getattr(active_document, "Document", None), "FileName", "")
+                start_directory = core.resolve_output_root(
+                    active_path or os.curdir,
+                    core.ExportOptions(
+                        True,
+                        False,
+                        False,
+                        output_mode=core.OUTPUT_MODE_CUSTOM,
+                        custom_output_directory=start_directory,
+                    ),
+                )
+            else:
+                start_directory = os.path.abspath(
+                    os.path.expandvars(os.path.expanduser(start_directory))
+                )
         if not start_directory:
             start_directory = os.path.expanduser("~")
         directory = QtWidgets.QFileDialog.getExistingDirectory(
@@ -256,9 +290,17 @@ class AutoBodyExportPreferencesPage:
             item.setCheckState(1, QtCore.Qt.Checked if state.enabled else QtCore.Qt.Unchecked)
             item.setText(2, str(len(state.selected_target_ids)))
             item.setText(3, str(len(state.generated_files)))
+            item.setText(4, self._document_output_label(state))
             item.setData(0, QtCore.Qt.UserRole, state.path)
-        for column in range(4):
+        for column in range(5):
             self.states_tree.resizeColumnToContents(column)
+
+    def _document_output_label(self, state):
+        if state.output_mode == core.OUTPUT_MODE_DOCUMENT:
+            return tr("Beside this document")
+        if state.output_mode == core.OUTPUT_MODE_CUSTOM:
+            return state.custom_output_directory or tr("Custom directory")
+        return tr("Use global preference")
 
     def _remove_selected_states(self):
         paths = [item.data(0, QtCore.Qt.UserRole) for item in self.states_tree.selectedItems()]

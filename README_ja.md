@@ -59,6 +59,11 @@ stl/
 `old_versions/vN/` へ移動します。Auto Body Exportが作成していないファイルを
 上書きすることはありません。
 
+各ドキュメントで全体設定とは別の出力先を指定できます。`{document_dir}/export`
+のように `{document_dir}` を使うと、作業中の `.FCStd` の隣へ出力できます。
+親ディレクトリ配下へ出力する場合は `{document_parent_dir}/export` または
+`{document_dir}/../export` を指定できます。
+
 ## ドキュメント
 
 - [日本語ユーザーガイド](docs/USER_GUIDE_ja.md)

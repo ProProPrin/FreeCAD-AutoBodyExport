@@ -35,8 +35,14 @@ SKIP_UNCHANGED_KEY = "SkipUnchanged"
 SAVE_PROCESS_DELAY_MS = 50
 DEFAULT_FILENAME_TEMPLATE = "{document}_{part}_{target}"
 MAX_FILENAME_STEM_LENGTH = 180
+DOCUMENT_DIRECTORY_FIELD = "document_dir"
+DOCUMENT_PARENT_DIRECTORY_FIELD = "document_parent_dir"
+DOCUMENT_DIRECTORY_TOKEN = "{" + DOCUMENT_DIRECTORY_FIELD + "}"
+DOCUMENT_PARENT_DIRECTORY_TOKEN = "{" + DOCUMENT_PARENT_DIRECTORY_FIELD + "}"
 OUTPUT_MODE_DOCUMENT = "document"
 OUTPUT_MODE_CUSTOM = "custom"
+OUTPUT_MODE_INHERIT = "inherit"
+DOCUMENT_OUTPUT_MODES = {OUTPUT_MODE_INHERIT, OUTPUT_MODE_DOCUMENT, OUTPUT_MODE_CUSTOM}
 FREECAD_MESH_PARAMETER_PATH = "User parameter:BaseApp/Preferences/Mod/Mesh"
 FREECAD_MESH_MAX_DEVIATION_EXPORT_KEY = "MaxDeviationExport"
 DEFAULT_STL_LINEAR_DEFLECTION = 0.1
@@ -66,6 +72,10 @@ WINDOWS_RESERVED_NAMES = {
     *(f"LPT{number}" for number in range(1, 10)),
 }
 FILENAME_TEMPLATE_FIELDS = {"document", "part", "target", "name"}
+OUTPUT_DIRECTORY_TEMPLATE_FIELDS = {
+    DOCUMENT_DIRECTORY_FIELD,
+    DOCUMENT_PARENT_DIRECTORY_FIELD,
+}
 
 
 @dataclass(frozen=True)
@@ -139,6 +149,8 @@ class DocumentState:
     generated_files: Set[str] = field(default_factory=set)
     export_signatures: Dict[str, str] = field(default_factory=dict)
     managed_output_roots: Set[str] = field(default_factory=set)
+    output_mode: str = OUTPUT_MODE_INHERIT
+    custom_output_directory: str = ""
 
     def to_json_value(self) -> dict:
         return {
@@ -156,6 +168,8 @@ class DocumentState:
             "generated_files": sorted(self.generated_files),
             "export_signatures": dict(sorted(self.export_signatures.items())),
             "managed_output_roots": sorted(self.managed_output_roots),
+            "output_mode": self.output_mode,
+            "custom_output_directory": self.custom_output_directory,
         }
 
     @classmethod
@@ -170,6 +184,8 @@ class DocumentState:
         generated_files = value.get("generated_files", [])
         export_signatures = value.get("export_signatures", {})
         managed_output_roots = value.get("managed_output_roots", [])
+        output_mode = value.get("output_mode", OUTPUT_MODE_INHERIT)
+        custom_output_directory = value.get("custom_output_directory", "")
         if not isinstance(path, str):
             return None
         if not isinstance(known_item_ids, list) or not isinstance(selected_target_ids, list):
@@ -184,6 +200,10 @@ class DocumentState:
             export_signatures = {}
         if not isinstance(managed_output_roots, list):
             managed_output_roots = []
+        if output_mode not in DOCUMENT_OUTPUT_MODES:
+            output_mode = OUTPUT_MODE_INHERIT
+        if not isinstance(custom_output_directory, str):
+            custom_output_directory = ""
         return cls(
             path=path,
             known_item_ids={item for item in known_item_ids if isinstance(item, str)},
@@ -207,6 +227,8 @@ class DocumentState:
                 for path in managed_output_roots
                 if isinstance(path, str)
             },
+            output_mode=output_mode,
+            custom_output_directory=custom_output_directory,
         )
 
 
@@ -243,6 +265,8 @@ class DialogResult:
     export_stl: bool
     show_dialog: bool
     document_enabled: bool
+    output_mode: str
+    custom_output_directory: str
 
 
 @dataclass
@@ -610,6 +634,12 @@ def reconcile_document_state(
             managed_output_roots=(
                 set(previous.managed_output_roots) if previous is not None else set()
             ),
+            output_mode=(
+                previous.output_mode if previous is not None else OUTPUT_MODE_INHERIT
+            ),
+            custom_output_directory=(
+                previous.custom_output_directory if previous is not None else ""
+            ),
         ),
         new_ids,
     )
@@ -652,6 +682,51 @@ def validate_filename_template(template: str) -> bool:
     except ValueError:
         return False
     return bool(fields)
+
+
+def validate_output_directory_template(template: str) -> bool:
+    if not isinstance(template, str):
+        return False
+    try:
+        for _, field_name, format_spec, conversion in string.Formatter().parse(template):
+            if field_name is None:
+                continue
+            if field_name not in OUTPUT_DIRECTORY_TEMPLATE_FIELDS:
+                return False
+            if format_spec or conversion:
+                return False
+    except ValueError:
+        return False
+    return True
+
+
+def output_directory_uses_template(template: str) -> bool:
+    try:
+        return any(
+            field_name is not None
+            for _, field_name, _, _ in string.Formatter().parse(template)
+        )
+    except ValueError:
+        return True
+
+
+def _resolve_custom_output_directory(template: str, filepath: str) -> str:
+    expanded = os.path.expandvars(os.path.expanduser(template.strip()))
+    if not validate_output_directory_template(expanded):
+        App.Console.PrintWarning(
+            "Auto Body Export: The output directory template is invalid. "
+            "Document-adjacent output will be used.\n"
+        )
+        return os.path.dirname(os.path.abspath(filepath))
+    document_directory = os.path.dirname(os.path.abspath(filepath))
+    document_parent_directory = os.path.dirname(document_directory)
+    rendered = expanded.format(
+        **{
+            DOCUMENT_DIRECTORY_FIELD: document_directory,
+            DOCUMENT_PARENT_DIRECTORY_FIELD: document_parent_directory,
+        }
+    )
+    return os.path.abspath(os.path.normpath(rendered))
 
 
 def render_export_stem(
@@ -785,19 +860,39 @@ def prune_old_versions(directory: str, history_limit: int) -> None:
         os.rmdir(old_versions_directory)
 
 
-def resolve_output_root(filepath: str, options: ExportOptions) -> str:
-    if options.output_mode == OUTPUT_MODE_CUSTOM and options.custom_output_directory.strip():
+def _effective_output_settings(
+    options: ExportOptions, document_state: Optional[DocumentState]
+) -> Tuple[str, str, bool]:
+    if document_state is not None and document_state.output_mode in (
+        OUTPUT_MODE_DOCUMENT,
+        OUTPUT_MODE_CUSTOM,
+    ):
+        return (
+            document_state.output_mode,
+            document_state.custom_output_directory,
+            True,
+        )
+    return options.output_mode, options.custom_output_directory, False
+
+
+def resolve_output_root(
+    filepath: str,
+    options: ExportOptions,
+    document_state: Optional[DocumentState] = None,
+) -> str:
+    output_mode, custom_output_directory, uses_document_state = _effective_output_settings(
+        options, document_state
+    )
+    if output_mode == OUTPUT_MODE_CUSTOM and custom_output_directory.strip():
+        custom_root = _resolve_custom_output_directory(custom_output_directory, filepath)
+        if uses_document_state or output_directory_uses_template(custom_output_directory):
+            return custom_root
         document_stem = sanitize_filename_component(
             os.path.splitext(os.path.basename(filepath))[0], "document"
         )
         document_directory = os.path.dirname(path_comparison_key(filepath))
         document_subdirectory = f"{document_stem}_{_short_hash(document_directory)}"
-        return os.path.abspath(
-            os.path.join(
-                os.path.expandvars(os.path.expanduser(options.custom_output_directory)),
-                document_subdirectory,
-            )
-        )
+        return os.path.abspath(os.path.join(custom_root, document_subdirectory))
     return os.path.dirname(os.path.abspath(filepath))
 
 
@@ -1148,6 +1243,7 @@ def _run_export_selected_targets(
     previous_output_roots: Iterable[str] = (),
     protect_unmanaged: bool = True,
     progress=None,
+    document_state: Optional[DocumentState] = None,
 ) -> ExportRunResult:
     result = ExportRunResult()
     previous_signatures = previous_signatures or {}
@@ -1156,7 +1252,7 @@ def _run_export_selected_targets(
     }
     formats = _formats_for_options(options)
     stl_mesh_settings = resolve_stl_mesh_settings(options) if "stl" in formats else None
-    output_root = resolve_output_root(filepath, options)
+    output_root = resolve_output_root(filepath, options, document_state)
     allowed_output_roots = {
         normalize_document_path(output_root),
         *(normalize_document_path(path) for path in previous_output_roots if path),
@@ -1391,6 +1487,9 @@ class SelectionDialog:
         new_item_ids: Set[str],
         options: ExportOptions,
         document_enabled: bool = True,
+        document_output_mode: str = OUTPUT_MODE_INHERIT,
+        document_custom_output_directory: str = "",
+        document_path: str = "",
     ):
         from PySide import QtCore, QtGui, QtWidgets
 
@@ -1404,6 +1503,7 @@ class SelectionDialog:
         self._target_groups = normalize_target_groups(inventory, target_groups)
         self._group_buttons: Dict[str, object] = {}
         self._group_checkboxes: Dict[Tuple[str, str], object] = {}
+        self._document_path = document_path
 
         dialog_parent = None
         try:
@@ -1431,6 +1531,54 @@ class SelectionDialog:
         )
         self.document_enabled_checkbox.setChecked(document_enabled)
         root_layout.addWidget(self.document_enabled_checkbox)
+
+        output_group = QtWidgets.QGroupBox(tr("Output location for this document"))
+        output_layout = QtWidgets.QGridLayout(output_group)
+        self.document_output_mode_combo = QtWidgets.QComboBox()
+        self.document_output_mode_combo.addItem(
+            tr("Use global preference"),
+            OUTPUT_MODE_INHERIT,
+        )
+        self.document_output_mode_combo.addItem(
+            tr("Beside this document"),
+            OUTPUT_MODE_DOCUMENT,
+        )
+        self.document_output_mode_combo.addItem(tr("Custom directory"), OUTPUT_MODE_CUSTOM)
+        output_layout.addWidget(self.document_output_mode_combo, 0, 0, 1, 3)
+
+        self.document_custom_output_edit = QtWidgets.QLineEdit()
+        self.document_custom_output_edit.setPlaceholderText(DOCUMENT_DIRECTORY_TOKEN + "/export")
+        default_custom_directory = (
+            document_custom_output_directory
+            if document_custom_output_directory
+            else options.custom_output_directory
+        )
+        self.document_custom_output_edit.setText(default_custom_directory)
+        self.document_custom_output_button = QtWidgets.QPushButton(tr("Browse..."))
+        self.document_custom_output_button.clicked.connect(
+            self._browse_document_output_directory
+        )
+        output_layout.addWidget(self.document_custom_output_edit, 1, 0, 1, 2)
+        output_layout.addWidget(self.document_custom_output_button, 1, 2)
+
+        output_note = QtWidgets.QLabel(
+            tr(
+                "Use {document_dir} for the current document directory, "
+                "{document_parent_dir} for its parent, or .. for relative paths."
+            )
+        )
+        output_note.setWordWrap(True)
+        output_layout.addWidget(output_note, 2, 0, 1, 3)
+        root_layout.addWidget(output_group)
+
+        output_index = self.document_output_mode_combo.findData(document_output_mode)
+        if output_index < 0:
+            output_index = 0
+        self.document_output_mode_combo.setCurrentIndex(output_index)
+        self.document_output_mode_combo.currentIndexChanged.connect(
+            self._update_document_output_controls
+        )
+        self._update_document_output_controls()
 
         format_group = QtWidgets.QGroupBox(tr("File formats"))
         format_layout = QtWidgets.QHBoxLayout(format_group)
@@ -1827,6 +1975,23 @@ class SelectionDialog:
             self._updating_tree = False
         self._refresh_all_part_states()
 
+    def _update_document_output_controls(self) -> None:
+        is_custom = self.document_output_mode_combo.currentData() == OUTPUT_MODE_CUSTOM
+        self.document_custom_output_edit.setEnabled(is_custom)
+        self.document_custom_output_button.setEnabled(is_custom)
+
+    def _browse_document_output_directory(self) -> None:
+        start_directory = self.document_custom_output_edit.text().strip()
+        if start_directory and validate_output_directory_template(start_directory):
+            start_directory = _resolve_custom_output_directory(start_directory, self._document_path)
+        if not start_directory:
+            start_directory = os.path.dirname(os.path.abspath(self._document_path or os.curdir))
+        directory = self.QtWidgets.QFileDialog.getExistingDirectory(
+            self.dialog, tr("Custom directory"), start_directory
+        )
+        if directory:
+            self.document_custom_output_edit.setText(directory)
+
     def _validate_and_accept(self) -> None:
         if not self.step_checkbox.isChecked() and not self.stl_checkbox.isChecked():
             self.QtWidgets.QMessageBox.warning(
@@ -1835,6 +2000,25 @@ class SelectionDialog:
                 tr("Select at least one file format: STEP or STL."),
             )
             return
+        if self.document_output_mode_combo.currentData() == OUTPUT_MODE_CUSTOM:
+            custom_directory = self.document_custom_output_edit.text().strip()
+            if not custom_directory:
+                self.QtWidgets.QMessageBox.warning(
+                    self.dialog,
+                    tr("Auto Body Export"),
+                    tr("Select a custom output directory."),
+                )
+                return
+            if not validate_output_directory_template(custom_directory):
+                self.QtWidgets.QMessageBox.warning(
+                    self.dialog,
+                    tr("Auto Body Export"),
+                    tr(
+                        "The output directory may only use {document_dir} "
+                        "or {document_parent_dir}."
+                    ),
+                )
+                return
         self.dialog.accept()
 
     def exec(self) -> DialogResult:
@@ -1856,6 +2040,8 @@ class SelectionDialog:
             export_stl=self.stl_checkbox.isChecked(),
             show_dialog=not self.hide_dialog_checkbox.isChecked(),
             document_enabled=self.document_enabled_checkbox.isChecked(),
+            output_mode=self.document_output_mode_combo.currentData(),
+            custom_output_directory=self.document_custom_output_edit.text().strip(),
         )
 
 
@@ -1952,6 +2138,9 @@ def process_saved_document(document, filepath: str) -> None:
             new_item_ids=new_item_ids,
             options=options,
             document_enabled=reconciled_state.enabled,
+            document_output_mode=reconciled_state.output_mode,
+            document_custom_output_directory=reconciled_state.custom_output_directory,
+            document_path=filepath,
         )
         result = dialog.exec()
         if not result.accepted:
@@ -1960,6 +2149,8 @@ def process_saved_document(document, filepath: str) -> None:
         reconciled_state.selected_target_ids = result.selected_target_ids
         reconciled_state.target_groups = result.target_groups
         reconciled_state.enabled = result.document_enabled
+        reconciled_state.output_mode = result.output_mode
+        reconciled_state.custom_output_directory = result.custom_output_directory
         options = dataclass_replace(
             options,
             export_step=result.export_step,
@@ -2002,6 +2193,7 @@ def process_saved_document(document, filepath: str) -> None:
             previous_signatures=reconciled_state.export_signatures,
             previous_output_roots=reconciled_state.managed_output_roots,
             progress=progress,
+            document_state=reconciled_state,
         )
     finally:
         progress.close()

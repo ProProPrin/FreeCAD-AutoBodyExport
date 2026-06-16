@@ -60,6 +60,11 @@ The latest export keeps its normal filename. Replaced and obsolete managed
 files move to `old_versions/vN/`. Files not created by Auto Body Export are
 never overwritten.
 
+Each document can override the global output location. Use `{document_dir}` in
+a custom output directory such as `{document_dir}/export` to write beside the
+active `.FCStd` file. Use `{document_parent_dir}/export`, or
+`{document_dir}/../export`, to write under the parent directory.
+
 ## Documentation
 
 - [English user guide](docs/USER_GUIDE.md)

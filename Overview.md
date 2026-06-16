@@ -12,8 +12,8 @@ STEP, STL, or both after every successful document save.
 - Explicit global and document-level enable controls
 - Stable current filenames with bounded `old_versions/vN/` history
 - Protection for files not created by the addon
-- Custom output directory, filename template, STL quality, and language
-  settings
+- Global and per-document output directories, filename template, STL quality,
+  and language settings
 - Unchanged-geometry detection and optional progress display
 
 ![Auto Body Export preferences](https://raw.githubusercontent.com/ProProPrin/FreeCAD-AutoBodyExport/main/docs/images/preferences.png)

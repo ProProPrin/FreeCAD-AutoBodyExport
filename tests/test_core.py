@@ -1,7 +1,10 @@
 import json
 import os
+import shutil
 import tempfile
 import unittest
+import uuid
+from contextlib import contextmanager
 from unittest import mock
 
 import FreeCAD as App
@@ -11,11 +14,20 @@ import Part
 from freecad.AutoBodyExport import core as export
 
 
+@contextmanager
 def temporary_directory():
     root = os.environ.get("AUTOBODYEXPORT_TEST_TMP")
     if root:
         os.makedirs(root, exist_ok=True)
-    return tempfile.TemporaryDirectory(dir=root)
+        path = os.path.join(root, f"t{uuid.uuid4().hex[:8]}")
+        os.makedirs(path)
+        try:
+            yield path
+        finally:
+            shutil.rmtree(path, ignore_errors=True)
+        return
+    with tempfile.TemporaryDirectory() as directory:
+        yield directory
 
 
 class AutoBodyExportCoreTests(unittest.TestCase):
@@ -793,6 +805,94 @@ class AutoBodyExportCoreTests(unittest.TestCase):
         self.assertTrue(os.path.basename(first).startswith("sample_"))
         self.assertTrue(os.path.basename(second).startswith("sample_"))
 
+    def test_document_dir_token_uses_document_directory_without_hash_subdirectory(self):
+        options = export.ExportOptions(
+            True,
+            False,
+            False,
+            enabled=True,
+            output_mode=export.OUTPUT_MODE_CUSTOM,
+            custom_output_directory=export.DOCUMENT_DIRECTORY_TOKEN + "/export",
+        )
+
+        root = export.resolve_output_root(r"C:\projects\one\sample.FCStd", options)
+
+        self.assertEqual(
+            export.normalize_document_path(root),
+            export.normalize_document_path(r"C:\projects\one\export"),
+        )
+
+    def test_output_directory_template_allows_document_parent_token(self):
+        self.assertTrue(
+            export.validate_output_directory_template(
+                export.DOCUMENT_PARENT_DIRECTORY_TOKEN + "/export"
+            )
+        )
+        self.assertTrue(
+            export.validate_output_directory_template(
+                export.DOCUMENT_DIRECTORY_TOKEN + "/../export"
+            )
+        )
+        self.assertFalse(export.validate_output_directory_template("{unknown}/export"))
+
+    def test_document_dir_token_allows_parent_segments(self):
+        options = export.ExportOptions(
+            True,
+            False,
+            False,
+            enabled=True,
+            output_mode=export.OUTPUT_MODE_CUSTOM,
+            custom_output_directory=export.DOCUMENT_DIRECTORY_TOKEN + "/../export",
+        )
+
+        root = export.resolve_output_root(r"C:\projects\one\sample.FCStd", options)
+
+        self.assertEqual(
+            export.normalize_document_path(root),
+            export.normalize_document_path(r"C:\projects\export"),
+        )
+
+    def test_document_parent_dir_token_uses_parent_directory(self):
+        options = export.ExportOptions(
+            True,
+            False,
+            False,
+            enabled=True,
+            output_mode=export.OUTPUT_MODE_CUSTOM,
+            custom_output_directory=export.DOCUMENT_PARENT_DIRECTORY_TOKEN + "/export",
+        )
+
+        root = export.resolve_output_root(r"C:\projects\one\sample.FCStd", options)
+
+        self.assertEqual(
+            export.normalize_document_path(root),
+            export.normalize_document_path(r"C:\projects\export"),
+        )
+
+    def test_document_state_custom_output_overrides_global_output(self):
+        options = export.ExportOptions(
+            True,
+            False,
+            False,
+            enabled=True,
+            output_mode=export.OUTPUT_MODE_CUSTOM,
+            custom_output_directory=r"C:\global",
+        )
+        state = export.DocumentState(
+            path=r"C:\projects\one\sample.FCStd",
+            known_item_ids=set(),
+            selected_target_ids=set(),
+            output_mode=export.OUTPUT_MODE_CUSTOM,
+            custom_output_directory=export.DOCUMENT_DIRECTORY_TOKEN + "/project_export",
+        )
+
+        root = export.resolve_output_root(state.path, options, state)
+
+        self.assertEqual(
+            export.normalize_document_path(root),
+            export.normalize_document_path(r"C:\projects\one\project_export"),
+        )
+
     def test_changing_output_root_retires_previous_managed_files(self):
         document = App.newDocument("OutputRootChangeTest")
         body = document.addObject("PartDesign::Body", "Body")
@@ -952,6 +1052,8 @@ class AutoBodyExportCoreTests(unittest.TestCase):
             generated_files={r"C:\models\step\sample_Body.step"},
             export_signatures={r"C:\models\step\sample_Body.step": "step:signature"},
             managed_output_roots={r"C:\models"},
+            output_mode=export.OUTPUT_MODE_CUSTOM,
+            custom_output_directory=export.DOCUMENT_DIRECTORY_TOKEN + "/export",
         )
         export.save_document_state(state)
         loaded = export.load_document_state(state.path)
@@ -965,6 +1067,11 @@ class AutoBodyExportCoreTests(unittest.TestCase):
         self.assertEqual(
             loaded.generated_files,
             {export.normalize_document_path(r"C:\models\step\sample_Body.step")},
+        )
+        self.assertEqual(loaded.output_mode, export.OUTPUT_MODE_CUSTOM)
+        self.assertEqual(
+            loaded.custom_output_directory,
+            export.DOCUMENT_DIRECTORY_TOKEN + "/export",
         )
 
     def test_stl_mesh_settings_default_to_freecad_export_deviation(self):
@@ -1069,6 +1176,49 @@ class AutoBodyExportCoreTests(unittest.TestCase):
             self.assertEqual(
                 saved_state.managed_output_roots,
                 {export.normalize_document_path(directory)},
+            )
+
+        App.closeDocument(document.Name)
+
+    def test_process_saved_document_uses_document_state_output_directory(self):
+        document = App.newDocument("ProcessSavedDocumentCustomOutputTest")
+        body = document.addObject("PartDesign::Body", "Body")
+        feature = body.newObject("PartDesign::Feature", "Feature")
+        feature.Shape = Part.makeBox(2, 2, 2)
+        document.recompute()
+        inventory = export.build_inventory(document)
+
+        with temporary_directory() as directory:
+            filepath = os.path.join(directory, "model.FCStd")
+            export.save_export_options(
+                export.ExportOptions(
+                    export_step=True,
+                    export_stl=False,
+                    show_dialog=False,
+                    enabled=True,
+                    show_progress=False,
+                )
+            )
+            export.save_document_state(
+                export.DocumentState(
+                    path=filepath,
+                    known_item_ids=inventory.item_ids,
+                    selected_target_ids=inventory.body_ids,
+                    enabled=True,
+                    output_mode=export.OUTPUT_MODE_CUSTOM,
+                    custom_output_directory=export.DOCUMENT_DIRECTORY_TOKEN + "/export",
+                )
+            )
+
+            export.process_saved_document(document, filepath)
+
+            output_root = os.path.join(directory, "export")
+            output_path = os.path.join(output_root, "step", "model_Body.step")
+            self.assertTrue(os.path.isfile(output_path))
+            saved_state = export.load_document_state(filepath)
+            self.assertEqual(
+                saved_state.managed_output_roots,
+                {export.normalize_document_path(output_root)},
             )
 
         App.closeDocument(document.Name)

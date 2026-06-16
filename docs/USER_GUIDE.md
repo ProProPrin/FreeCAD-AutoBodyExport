@@ -55,6 +55,8 @@ git clone https://github.com/ProProPrin/FreeCAD-AutoBodyExport.git `
 4. Open or create a document and save it to an `.FCStd` path.
 5. In the selection dialog:
    - keep **Enable automatic export for this document** selected;
+   - choose the output location for this document, if it should differ from
+     the global preference;
    - select the Bodies and independent objects to export;
    - choose STEP, STL, or both;
    - optionally group targets from the same Part.
@@ -139,6 +141,21 @@ such as:
 The suffix is derived from the source document directory. Same-named documents
 from different projects therefore receive different output directories.
 
+The selection dialog can override the output location for a single document.
+For per-document custom locations, the chosen directory is used directly:
+
+```text
+<document custom directory>/
+  step/
+  stl/
+```
+
+Use `{document_dir}` to refer to the directory containing the current `.FCStd`
+file. For example, `{document_dir}/export` writes to an `export` directory
+beside the active document. Use `{document_parent_dir}/export`, or
+`{document_dir}/../export`, to write to an `export` directory under the parent
+directory.
+
 ### Replacement and history
 
 - The latest export always keeps its normal filename.
@@ -205,7 +222,7 @@ Open **Edit > Preferences > Auto Body Export**.
 | Enable globally | Off | Master switch required before any automatic export |
 | STEP | On | Produce STEP output |
 | STL | Off | Produce STL output |
-| Output mode | Beside each document | Use folders beside the document or under a selected directory |
+| Output mode | Beside each document | Default output location for new document configurations |
 | Filename template | `{document}_{part}_{target}` | Build the current output filename |
 | History versions | `20` | Maximum `old_versions/vN/` directories retained per format |
 | Skip unchanged exports | On | Reuse existing output when geometry and settings match |
@@ -224,7 +241,7 @@ Part, Body, or independent object is detected.
 ### Saved selections by CAD file
 
 The table shows each known CAD path, its document-level enable state, selected
-target count, and managed-file count.
+target count, managed-file count, and document-specific output location.
 
 - Change the **Enabled** checkbox to enable or disable a known document.
 - **Remove selected entries** forgets the selected saved configurations.

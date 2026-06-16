@@ -44,8 +44,18 @@ _JA = {
     ),
     "Output": "出力",
     "Beside each document": "各ドキュメントと同じ場所",
+    "Output location for this document": "このドキュメントの出力先",
+    "Use global preference": "全体設定を使用",
+    "Beside this document": "このドキュメントと同じ場所",
     "Custom directory": "指定したディレクトリ",
     "Browse...": "参照...",
+    (
+        "Use {document_dir} for the current document directory, "
+        "{document_parent_dir} for its parent, or .. for relative paths."
+    ): (
+        "現在のドキュメントのディレクトリには {document_dir}、"
+        "その親ディレクトリには {document_parent_dir}、相対指定には .. を使用できます。"
+    ),
     "Filename template": "ファイル名テンプレート",
     "Available fields: {document}, {part}, {target}, {name}": (
         "利用可能: {document}, {part}, {target}, {name}"
@@ -74,6 +84,10 @@ _JA = {
     "No": "いいえ",
     "Select at least one file format: STEP or STL.": ("STEPまたはSTLを1つ以上選択してください。"),
     "Select a custom output directory.": "出力先ディレクトリを指定してください。",
+    "The output directory may only use {document_dir} or {document_parent_dir}.": (
+        "出力先ディレクトリで使用できる置換文字列は "
+        "{document_dir} または {document_parent_dir} です。"
+    ),
     "The filename template must contain at least one supported field.": (
         "ファイル名テンプレートには利用可能なフィールドを1つ以上含めてください。"
     ),
