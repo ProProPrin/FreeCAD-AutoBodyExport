@@ -57,6 +57,7 @@ _JA = {
     ),
     "Show progress while exporting": "出力中に進捗を表示する",
     "STL quality": "STL品質",
+    "Use FreeCAD STL export settings": "FreeCADのSTL出力設定を使用する",
     "Linear deflection": "線形偏差",
     "Angular deflection (radians)": "角度偏差（ラジアン）",
     "Saved selections by CAD file": "CADファイルごとの保存済み設定",

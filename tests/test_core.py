@@ -938,6 +938,7 @@ class AutoBodyExportCoreTests(unittest.TestCase):
             stl_angular_deflection=0.75,
             show_progress=False,
             skip_unchanged=False,
+            stl_use_freecad_settings=False,
         )
         export.save_export_options(options)
         self.assertEqual(export.load_export_options(), options)
@@ -965,6 +966,45 @@ class AutoBodyExportCoreTests(unittest.TestCase):
             loaded.generated_files,
             {export.normalize_document_path(r"C:\models\step\sample_Body.step")},
         )
+
+    def test_stl_mesh_settings_default_to_freecad_export_deviation(self):
+        class FakeParameterGroup:
+            def GetFloat(self, key, default):
+                self.request = (key, default)
+                return 0.42
+
+        parameter_group = FakeParameterGroup()
+        with mock.patch.object(export.App, "ParamGet", return_value=parameter_group) as param_get:
+            settings = export.resolve_stl_mesh_settings(export.ExportOptions(False, True, False))
+
+        param_get.assert_called_once_with(export.FREECAD_MESH_PARAMETER_PATH)
+        self.assertEqual(
+            parameter_group.request,
+            (
+                export.FREECAD_MESH_MAX_DEVIATION_EXPORT_KEY,
+                export.DEFAULT_STL_LINEAR_DEFLECTION,
+            ),
+        )
+        self.assertEqual(settings.source, "freecad")
+        self.assertEqual(settings.linear_deflection, 0.42)
+        self.assertEqual(settings.angular_deflection, export.DEFAULT_STL_ANGULAR_DEFLECTION)
+
+    def test_manual_stl_mesh_settings_do_not_read_freecad_preferences(self):
+        options = export.ExportOptions(
+            False,
+            True,
+            False,
+            stl_linear_deflection=0.25,
+            stl_angular_deflection=0.75,
+            stl_use_freecad_settings=False,
+        )
+        with mock.patch.object(export.App, "ParamGet") as param_get:
+            settings = export.resolve_stl_mesh_settings(options)
+
+        param_get.assert_not_called()
+        self.assertEqual(settings.source, "manual")
+        self.assertEqual(settings.linear_deflection, 0.25)
+        self.assertEqual(settings.angular_deflection, 0.75)
 
     def test_document_state_uses_embedded_path_when_map_key_is_corrupted(self):
         with temporary_directory() as directory:

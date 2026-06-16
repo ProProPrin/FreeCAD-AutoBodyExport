@@ -96,6 +96,10 @@ class AutoBodyExportPreferencesPage:
 
         stl_group = QtWidgets.QGroupBox(tr("STL quality"))
         stl_layout = QtWidgets.QFormLayout(stl_group)
+        self.freecad_stl_settings_checkbox = QtWidgets.QCheckBox(
+            tr("Use FreeCAD STL export settings")
+        )
+        self.freecad_stl_settings_checkbox.toggled.connect(self._update_stl_quality_controls)
         self.linear_deflection_spin = QtWidgets.QDoubleSpinBox()
         self.linear_deflection_spin.setDecimals(4)
         self.linear_deflection_spin.setRange(0.001, 1000.0)
@@ -104,6 +108,7 @@ class AutoBodyExportPreferencesPage:
         self.angular_deflection_spin.setDecimals(4)
         self.angular_deflection_spin.setRange(0.01, 3.1416)
         self.angular_deflection_spin.setSingleStep(0.05)
+        stl_layout.addRow(self.freecad_stl_settings_checkbox)
         stl_layout.addRow(tr("Linear deflection"), self.linear_deflection_spin)
         stl_layout.addRow(
             tr("Angular deflection (radians)"),
@@ -165,6 +170,7 @@ class AutoBodyExportPreferencesPage:
         self.custom_output_edit.setText(options.custom_output_directory)
         self.filename_template_edit.setText(options.filename_template)
         self.history_limit_spin.setValue(options.history_limit)
+        self.freecad_stl_settings_checkbox.setChecked(options.stl_use_freecad_settings)
         self.linear_deflection_spin.setValue(options.stl_linear_deflection)
         self.angular_deflection_spin.setValue(options.stl_angular_deflection)
         self.show_progress_checkbox.setChecked(options.show_progress)
@@ -172,6 +178,7 @@ class AutoBodyExportPreferencesPage:
         index = self.output_mode_combo.findData(options.output_mode)
         self.output_mode_combo.setCurrentIndex(max(0, index))
         self._update_output_controls()
+        self._update_stl_quality_controls()
         self._reload_states()
 
     def saveSettings(self):
@@ -204,6 +211,7 @@ class AutoBodyExportPreferencesPage:
                 stl_angular_deflection=self.angular_deflection_spin.value(),
                 show_progress=self.show_progress_checkbox.isChecked(),
                 skip_unchanged=self.skip_unchanged_checkbox.isChecked(),
+                stl_use_freecad_settings=self.freecad_stl_settings_checkbox.isChecked(),
             )
         )
         changed_states = []
@@ -221,6 +229,11 @@ class AutoBodyExportPreferencesPage:
         is_custom = self.output_mode_combo.currentData() == core.OUTPUT_MODE_CUSTOM
         self.custom_output_edit.setEnabled(is_custom)
         self.custom_output_button.setEnabled(is_custom)
+
+    def _update_stl_quality_controls(self):
+        manual = not self.freecad_stl_settings_checkbox.isChecked()
+        self.linear_deflection_spin.setEnabled(manual)
+        self.angular_deflection_spin.setEnabled(manual)
 
     def _browse_output_directory(self):
         start_directory = self.custom_output_edit.text().strip()

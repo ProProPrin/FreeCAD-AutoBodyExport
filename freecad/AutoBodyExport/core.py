@@ -27,6 +27,7 @@ OUTPUT_MODE_KEY = "OutputMode"
 CUSTOM_OUTPUT_DIRECTORY_KEY = "CustomOutputDirectory"
 FILENAME_TEMPLATE_KEY = "FilenameTemplate"
 HISTORY_LIMIT_KEY = "HistoryLimit"
+STL_USE_FREECAD_SETTINGS_KEY = "STLUseFreeCADSettings"
 STL_LINEAR_DEFLECTION_KEY = "STLLinearDeflection"
 STL_ANGULAR_DEFLECTION_KEY = "STLAngularDeflection"
 SHOW_PROGRESS_KEY = "ShowProgress"
@@ -36,6 +37,10 @@ DEFAULT_FILENAME_TEMPLATE = "{document}_{part}_{target}"
 MAX_FILENAME_STEM_LENGTH = 180
 OUTPUT_MODE_DOCUMENT = "document"
 OUTPUT_MODE_CUSTOM = "custom"
+FREECAD_MESH_PARAMETER_PATH = "User parameter:BaseApp/Preferences/Mod/Mesh"
+FREECAD_MESH_MAX_DEVIATION_EXPORT_KEY = "MaxDeviationExport"
+DEFAULT_STL_LINEAR_DEFLECTION = 0.1
+DEFAULT_STL_ANGULAR_DEFLECTION = 0.5
 GROUP_COLORS = (
     "#b8daf7",
     "#bfe8c8",
@@ -215,10 +220,18 @@ class ExportOptions:
     custom_output_directory: str = ""
     filename_template: str = DEFAULT_FILENAME_TEMPLATE
     history_limit: int = 20
-    stl_linear_deflection: float = 0.1
-    stl_angular_deflection: float = 0.5
+    stl_linear_deflection: float = DEFAULT_STL_LINEAR_DEFLECTION
+    stl_angular_deflection: float = DEFAULT_STL_ANGULAR_DEFLECTION
     show_progress: bool = True
     skip_unchanged: bool = True
+    stl_use_freecad_settings: bool = True
+
+
+@dataclass(frozen=True)
+class STLMeshSettings:
+    source: str
+    linear_deflection: float
+    angular_deflection: float
 
 
 @dataclass(frozen=True)
@@ -273,10 +286,17 @@ def load_export_options() -> ExportOptions:
         custom_output_directory=params.GetString(CUSTOM_OUTPUT_DIRECTORY_KEY, ""),
         filename_template=filename_template,
         history_limit=max(0, params.GetInt(HISTORY_LIMIT_KEY, 20)),
-        stl_linear_deflection=max(0.001, params.GetFloat(STL_LINEAR_DEFLECTION_KEY, 0.1)),
-        stl_angular_deflection=max(0.01, params.GetFloat(STL_ANGULAR_DEFLECTION_KEY, 0.5)),
+        stl_linear_deflection=max(
+            0.001,
+            params.GetFloat(STL_LINEAR_DEFLECTION_KEY, DEFAULT_STL_LINEAR_DEFLECTION),
+        ),
+        stl_angular_deflection=max(
+            0.01,
+            params.GetFloat(STL_ANGULAR_DEFLECTION_KEY, DEFAULT_STL_ANGULAR_DEFLECTION),
+        ),
         show_progress=params.GetBool(SHOW_PROGRESS_KEY, True),
         skip_unchanged=params.GetBool(SKIP_UNCHANGED_KEY, True),
+        stl_use_freecad_settings=params.GetBool(STL_USE_FREECAD_SETTINGS_KEY, True),
     )
 
 
@@ -294,6 +314,33 @@ def save_export_options(options: ExportOptions) -> None:
     params.SetFloat(STL_ANGULAR_DEFLECTION_KEY, max(0.01, options.stl_angular_deflection))
     params.SetBool(SHOW_PROGRESS_KEY, options.show_progress)
     params.SetBool(SKIP_UNCHANGED_KEY, options.skip_unchanged)
+    params.SetBool(STL_USE_FREECAD_SETTINGS_KEY, options.stl_use_freecad_settings)
+
+
+def resolve_stl_mesh_settings(options: ExportOptions) -> STLMeshSettings:
+    if not options.stl_use_freecad_settings:
+        return STLMeshSettings(
+            source="manual",
+            linear_deflection=max(0.001, options.stl_linear_deflection),
+            angular_deflection=max(0.01, options.stl_angular_deflection),
+        )
+
+    mesh_params = App.ParamGet(FREECAD_MESH_PARAMETER_PATH)
+    return STLMeshSettings(
+        source="freecad",
+        linear_deflection=max(
+            0.001,
+            mesh_params.GetFloat(
+                FREECAD_MESH_MAX_DEVIATION_EXPORT_KEY,
+                DEFAULT_STL_LINEAR_DEFLECTION,
+            ),
+        ),
+        angular_deflection=DEFAULT_STL_ANGULAR_DEFLECTION,
+    )
+
+
+def stl_mesh_settings_signature(settings: STLMeshSettings) -> str:
+    return f"{settings.source}:{settings.linear_deflection:g}:{settings.angular_deflection:g}"
 
 
 def normalize_document_path(path: str) -> str:
@@ -1014,15 +1061,15 @@ def _export_step(source_objects: Sequence[object], temporary_path: str) -> None:
 def _export_stl(
     source_objects: Sequence[object],
     temporary_path: str,
-    options: ExportOptions,
+    settings: STLMeshSettings,
 ) -> None:
     import MeshPart
 
     compound = _compound_for_objects(source_objects)
     mesh = MeshPart.meshFromShape(
         Shape=compound,
-        LinearDeflection=options.stl_linear_deflection,
-        AngularDeflection=options.stl_angular_deflection,
+        LinearDeflection=settings.linear_deflection,
+        AngularDeflection=settings.angular_deflection,
         Relative=False,
     )
     if mesh.CountFacets <= 0:
@@ -1108,6 +1155,7 @@ def _run_export_selected_targets(
         path_comparison_key(path): signature for path, signature in previous_signatures.items()
     }
     formats = _formats_for_options(options)
+    stl_mesh_settings = resolve_stl_mesh_settings(options) if "stl" in formats else None
     output_root = resolve_output_root(filepath, options)
     allowed_output_roots = {
         normalize_document_path(output_root),
@@ -1153,10 +1201,8 @@ def _run_export_selected_targets(
             normalized_output_path = normalize_document_path(output_path)
             output_path_key = path_comparison_key(output_path)
             signature = f"{extension}:{plan.signature_base}"
-            if extension == "stl":
-                signature += (
-                    f":{options.stl_linear_deflection:g}:{options.stl_angular_deflection:g}"
-                )
+            if extension == "stl" and stl_mesh_settings is not None:
+                signature += ":" + stl_mesh_settings_signature(stl_mesh_settings)
             if (
                 options.skip_unchanged
                 and os.path.isfile(output_path)
@@ -1176,7 +1222,7 @@ def _run_export_selected_targets(
                 if extension == "step":
                     _export_step(plan.source_objects, temporary_path)
                 else:
-                    _export_stl(plan.source_objects, temporary_path, options)
+                    _export_stl(plan.source_objects, temporary_path, stl_mesh_settings)
                 archive_path = _replace_with_history(
                     temporary_path,
                     output_path,
@@ -1269,7 +1315,7 @@ def _export_object_list(
             if extension == "step":
                 _export_step(source_objects, temporary_path)
             else:
-                _export_stl(source_objects, temporary_path, options)
+                _export_stl(source_objects, temporary_path, resolve_stl_mesh_settings(options))
             version_map = archive_versions if archive_versions is not None else {}
             archive_path = _replace_with_history(
                 temporary_path, output_path, options.history_limit, version_map

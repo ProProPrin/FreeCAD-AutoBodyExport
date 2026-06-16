@@ -167,8 +167,9 @@ the previous current file is restored.
 
 With unchanged-export skipping enabled, the addon compares the geometry and
 relevant output settings with the previous successful run. Existing output is
-reused when they match. STL linear and angular deflection are included in the
-STL comparison.
+reused when they match. STL mesh settings are included in the STL comparison;
+when FreeCAD STL settings are enabled, the current FreeCAD mesh export
+deviation is used.
 
 ## Filename template
 
@@ -209,8 +210,9 @@ Open **Edit > Preferences > Auto Body Export**.
 | History versions | `20` | Maximum `old_versions/vN/` directories retained per format |
 | Skip unchanged exports | On | Reuse existing output when geometry and settings match |
 | Show progress | On | Display export progress for GUI runs |
-| STL linear deflection | `0.1` | Control STL mesh linear precision |
-| STL angular deflection | `0.5` radians | Control STL mesh angular precision |
+| Use FreeCAD STL export settings | On | Use FreeCAD's mesh export deviation for STL output |
+| STL linear deflection | `0.1` | Manual STL mesh linear precision when FreeCAD settings are off |
+| STL angular deflection | `0.5` radians | Manual STL mesh angular precision when FreeCAD settings are off |
 | Show selection dialog every save | On | Prompt on every successful save |
 
 At least one output format is required. If both format checkboxes are cleared,

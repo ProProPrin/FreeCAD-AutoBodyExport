@@ -15,6 +15,8 @@ STEP, STL, or both after every successful document save.
 - Protect existing files that were not created by the addon.
 - Skip unchanged geometry and settings to avoid unnecessary exports.
 - Configure output location, filenames, STL quality, history, and UI language.
+- Use FreeCAD's own STL export resolution by default, with manual STL quality
+  available when needed.
 
 Installation alone does not create files. Both the global setting and the
 individual document must be enabled before automatic export starts.
