@@ -55,7 +55,7 @@ stl/
   assembly_Frame_Main Body.stl
 ```
 
-最新ファイルは通常名を維持します。置換前と不要になった管理ファイルは
+最新ファイルは通常名を維持します。既定では、置換前と不要になった管理ファイルは
 `old_versions/vN/` へ移動します。Auto Body Exportが作成していないファイルを
 上書きすることはありません。
 
@@ -63,6 +63,9 @@ stl/
 のように `{document_dir}` を使うと、作業中の `.FCStd` の隣へ出力できます。
 親ディレクトリ配下へ出力する場合は `{document_parent_dir}/export` または
 `{document_dir}/../export` を指定できます。
+
+履歴も `{document_dir}/export_history` のように1つの保存先を指定できます。
+その配下に `step/vN/` と `stl/vN/` を自動作成します。
 
 ## ドキュメント
 

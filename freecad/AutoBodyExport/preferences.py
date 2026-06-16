@@ -95,12 +95,28 @@ class AutoBodyExportPreferencesPage:
         history_note.setWordWrap(True)
         output_layout.addWidget(history_note, 6, 0, 1, 3)
 
+        output_layout.addWidget(QtWidgets.QLabel(tr("History output directory")), 7, 0)
+        self.history_output_directory_edit = QtWidgets.QLineEdit()
+        self.history_output_directory_button = QtWidgets.QPushButton(tr("Browse..."))
+        self.history_output_directory_button.clicked.connect(self._browse_history_output_directory)
+        output_layout.addWidget(self.history_output_directory_edit, 7, 1)
+        output_layout.addWidget(self.history_output_directory_button, 7, 2)
+        history_output_note = QtWidgets.QLabel(
+            tr(
+                "Leave blank to use old_versions beside each format. Custom history "
+                "directories create step and stl subdirectories automatically. "
+                "Use {output_dir} for the resolved export root."
+            )
+        )
+        history_output_note.setWordWrap(True)
+        output_layout.addWidget(history_output_note, 8, 0, 1, 3)
+
         self.skip_unchanged_checkbox = QtWidgets.QCheckBox(
             tr("Skip exports when geometry and settings are unchanged")
         )
-        output_layout.addWidget(self.skip_unchanged_checkbox, 7, 0, 1, 3)
+        output_layout.addWidget(self.skip_unchanged_checkbox, 9, 0, 1, 3)
         self.show_progress_checkbox = QtWidgets.QCheckBox(tr("Show progress while exporting"))
-        output_layout.addWidget(self.show_progress_checkbox, 8, 0, 1, 3)
+        output_layout.addWidget(self.show_progress_checkbox, 10, 0, 1, 3)
         layout.addWidget(output_group)
 
         stl_group = QtWidgets.QGroupBox(tr("STL quality"))
@@ -180,6 +196,7 @@ class AutoBodyExportPreferencesPage:
         self.custom_output_edit.setText(options.custom_output_directory)
         self.filename_template_edit.setText(options.filename_template)
         self.history_limit_spin.setValue(options.history_limit)
+        self.history_output_directory_edit.setText(options.history_output_directory)
         self.freecad_stl_settings_checkbox.setChecked(options.stl_use_freecad_settings)
         self.linear_deflection_spin.setValue(options.stl_linear_deflection)
         self.angular_deflection_spin.setValue(options.stl_angular_deflection)
@@ -197,12 +214,8 @@ class AutoBodyExportPreferencesPage:
             self.step_checkbox.setChecked(True)
         output_mode = self.output_mode_combo.currentData()
         custom_directory = self.custom_output_edit.text().strip()
-        if (
-            output_mode == core.OUTPUT_MODE_CUSTOM
-            and (
-                not custom_directory
-                or not core.validate_output_directory_template(custom_directory)
-            )
+        if output_mode == core.OUTPUT_MODE_CUSTOM and (
+            not custom_directory or not core.validate_output_directory_template(custom_directory)
         ):
             output_mode = core.OUTPUT_MODE_DOCUMENT
             self.output_mode_combo.setCurrentIndex(
@@ -212,6 +225,12 @@ class AutoBodyExportPreferencesPage:
         if not core.validate_filename_template(filename_template):
             filename_template = core.DEFAULT_FILENAME_TEMPLATE
             self.filename_template_edit.setText(filename_template)
+        history_output_directory = self.history_output_directory_edit.text().strip()
+        if history_output_directory and not core.validate_history_output_directory_template(
+            history_output_directory
+        ):
+            history_output_directory = ""
+            self.history_output_directory_edit.setText(history_output_directory)
 
         core.save_export_options(
             core.ExportOptions(
@@ -223,6 +242,7 @@ class AutoBodyExportPreferencesPage:
                 custom_output_directory=custom_directory,
                 filename_template=filename_template,
                 history_limit=self.history_limit_spin.value(),
+                history_output_directory=history_output_directory,
                 stl_linear_deflection=self.linear_deflection_spin.value(),
                 stl_angular_deflection=self.angular_deflection_spin.value(),
                 show_progress=self.show_progress_checkbox.isChecked(),
@@ -278,6 +298,37 @@ class AutoBodyExportPreferencesPage:
         )
         if directory:
             self.custom_output_edit.setText(directory)
+
+    def _browse_history_output_directory(self):
+        start_directory = self.history_output_directory_edit.text().strip()
+        if start_directory and core.validate_history_output_directory_template(start_directory):
+            active_document = getattr(Gui, "ActiveDocument", None)
+            active_path = getattr(getattr(active_document, "Document", None), "FileName", "")
+            active_path = active_path or os.curdir
+            output_options = core.ExportOptions(
+                True,
+                False,
+                False,
+                output_mode=self.output_mode_combo.currentData(),
+                custom_output_directory=self.custom_output_edit.text().strip(),
+            )
+            output_root = core.resolve_output_root(active_path, output_options)
+            start_directory = core.resolve_history_output_root(
+                start_directory,
+                active_path,
+                output_root,
+            )
+        elif start_directory:
+            start_directory = os.path.abspath(
+                os.path.expandvars(os.path.expanduser(start_directory))
+            )
+        if not start_directory:
+            start_directory = os.path.expanduser("~")
+        directory = QtWidgets.QFileDialog.getExistingDirectory(
+            self.form, tr("History output directory"), start_directory
+        )
+        if directory:
+            self.history_output_directory_edit.setText(directory)
 
     def _reload_states(self):
         self.states_tree.clear()

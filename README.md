@@ -56,14 +56,17 @@ stl/
   assembly_Frame_Main Body.stl
 ```
 
-The latest export keeps its normal filename. Replaced and obsolete managed
-files move to `old_versions/vN/`. Files not created by Auto Body Export are
-never overwritten.
+The latest export keeps its normal filename. By default, replaced and obsolete
+managed files move to `old_versions/vN/`. Files not created by Auto Body Export
+are never overwritten.
 
 Each document can override the global output location. Use `{document_dir}` in
 a custom output directory such as `{document_dir}/export` to write beside the
 active `.FCStd` file. Use `{document_parent_dir}/export`, or
 `{document_dir}/../export`, to write under the parent directory.
+
+History can also use one custom root such as `{document_dir}/export_history`.
+Auto Body Export creates `step/vN/` and `stl/vN/` under that directory.
 
 ## Documentation
 

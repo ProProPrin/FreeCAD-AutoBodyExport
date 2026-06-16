@@ -124,7 +124,7 @@ stl/
 ```
 
 STEP history is kept under `step/old_versions/`; STL history is kept under
-`stl/old_versions/`.
+`stl/old_versions/` when **History output directory** is blank.
 
 ### Custom output directory
 
@@ -156,11 +156,29 @@ beside the active document. Use `{document_parent_dir}/export`, or
 `{document_dir}/../export`, to write to an `export` directory under the parent
 directory.
 
+### Custom history directory
+
+Set **History output directory** to move archived versions away from the latest
+STEP/STL output directories. The setting uses one directory only; Auto Body
+Export creates format-specific subdirectories automatically:
+
+```text
+<history output directory>/
+  step/
+    v0/
+  stl/
+    v0/
+```
+
+For example, `{document_dir}/export_history` stores STEP history in
+`export_history/step/vN/` and STL history in `export_history/stl/vN/`.
+`{output_dir}` can be used to refer to the resolved latest-output root.
+
 ### Replacement and history
 
 - The latest export always keeps its normal filename.
 - Before replacement, the previous managed file moves to the next
-  `old_versions/vN/` directory as `filename_vN.ext`.
+  history `vN/` directory as `filename_vN.ext`.
 - All files replaced in one format during the same run share the same version
   number.
 - History is pruned to the configured limit. A limit of `0` replaces files
@@ -224,7 +242,8 @@ Open **Edit > Preferences > Auto Body Export**.
 | STL | Off | Produce STL output |
 | Output mode | Beside each document | Default output location for new document configurations |
 | Filename template | `{document}_{part}_{target}` | Build the current output filename |
-| History versions | `20` | Maximum `old_versions/vN/` directories retained per format |
+| History versions | `20` | Maximum `vN/` history directories retained per format |
+| History output directory | Blank | Optional history root; creates `step` and `stl` subdirectories automatically |
 | Skip unchanged exports | On | Reuse existing output when geometry and settings match |
 | Show progress | On | Display export progress for GUI runs |
 | Use FreeCAD STL export settings | On | Use FreeCAD's mesh export deviation for STL output |

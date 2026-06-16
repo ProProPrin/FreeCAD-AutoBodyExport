@@ -10,7 +10,7 @@ STEP, STL, or both after every successful document save.
 - Per-document target selection with optional grouped output inside the same
   `App::Part`
 - Explicit global and document-level enable controls
-- Stable current filenames with bounded `old_versions/vN/` history
+- Stable current filenames with bounded `vN/` history, including custom history roots
 - Protection for files not created by the addon
 - Global and per-document output directories, filename template, STL quality,
   and language settings

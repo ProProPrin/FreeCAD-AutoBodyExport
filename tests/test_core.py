@@ -386,6 +386,60 @@ class AutoBodyExportCoreTests(unittest.TestCase):
 
         App.closeDocument(document.Name)
 
+    def test_custom_history_output_directory_uses_format_subdirectories(self):
+        document = App.newDocument("CustomHistoryDirectoryTest")
+        body = document.addObject("PartDesign::Body", "Body")
+        feature = body.newObject("PartDesign::Feature", "Feature")
+        feature.Shape = Part.makeBox(2, 2, 2)
+        document.recompute()
+        inventory = export.build_inventory(document)
+        options = export.ExportOptions(
+            True,
+            True,
+            False,
+            enabled=True,
+            history_output_directory=export.DOCUMENT_DIRECTORY_TOKEN + "/history",
+            skip_unchanged=False,
+        )
+
+        with temporary_directory() as directory:
+            filepath = os.path.join(directory, "model.FCStd")
+            first = export._run_export_selected_targets(
+                document,
+                filepath,
+                inventory,
+                inventory.body_ids,
+                (),
+                options,
+            )
+            second = export._run_export_selected_targets(
+                document,
+                filepath,
+                inventory,
+                inventory.body_ids,
+                (),
+                options,
+                first.generated_files,
+                first.export_signatures,
+            )
+
+            self.assertFalse(first.failures)
+            self.assertFalse(second.failures)
+            self.assertTrue(os.path.isfile(os.path.join(directory, "step", "model_Body.step")))
+            self.assertTrue(os.path.isfile(os.path.join(directory, "stl", "model_Body.stl")))
+            self.assertTrue(
+                os.path.isfile(
+                    os.path.join(directory, "history", "step", "v0", "model_Body_v0.step")
+                )
+            )
+            self.assertTrue(
+                os.path.isfile(os.path.join(directory, "history", "stl", "v0", "model_Body_v0.stl"))
+            )
+            self.assertFalse(os.path.isdir(os.path.join(directory, "step", "old_versions")))
+            self.assertFalse(os.path.isdir(os.path.join(directory, "stl", "old_versions")))
+
+        App.closeDocument(document.Name)
+
     def test_multiple_outputs_share_one_archive_version_per_format(self):
         document = App.newDocument("SharedArchiveVersionTest")
         part = document.addObject("App::Part", "ExportPart")
@@ -697,6 +751,51 @@ class AutoBodyExportCoreTests(unittest.TestCase):
 
         App.closeDocument(document.Name)
 
+    def test_custom_history_output_directory_is_bounded_per_format(self):
+        document = App.newDocument("CustomHistoryLimitTest")
+        body = document.addObject("PartDesign::Body", "Body")
+        feature = body.newObject("PartDesign::Feature", "Feature")
+        feature.Shape = Part.makeBox(2, 2, 2)
+        document.recompute()
+        inventory = export.build_inventory(document)
+        options = export.ExportOptions(
+            True,
+            False,
+            False,
+            enabled=True,
+            history_limit=2,
+            history_output_directory=export.DOCUMENT_DIRECTORY_TOKEN + "/history",
+            skip_unchanged=False,
+        )
+
+        with temporary_directory() as directory:
+            filepath = os.path.join(directory, "model.FCStd")
+            previous = None
+            for size in (2, 3, 4, 5):
+                feature.Shape = Part.makeBox(size, size, size)
+                document.recompute()
+                inventory = export.build_inventory(document)
+                previous = export._run_export_selected_targets(
+                    document,
+                    filepath,
+                    inventory,
+                    inventory.body_ids,
+                    (),
+                    options,
+                    previous.generated_files if previous is not None else (),
+                    previous.export_signatures if previous is not None else None,
+                )
+                self.assertFalse(previous.failures)
+
+            history_directory = os.path.join(directory, "history", "step")
+            versions = sorted(
+                name for name in os.listdir(history_directory) if name.startswith("v")
+            )
+            self.assertEqual(versions, ["v1", "v2"])
+            self.assertFalse(os.path.isdir(os.path.join(directory, "step", "old_versions")))
+
+        App.closeDocument(document.Name)
+
     def test_long_labels_are_truncated_and_existing_files_are_protected(self):
         document = App.newDocument("FilenameSafetyTest")
         part = document.addObject("App::Part", "Assembly")
@@ -835,6 +934,22 @@ class AutoBodyExportCoreTests(unittest.TestCase):
         )
         self.assertFalse(export.validate_output_directory_template("{unknown}/export"))
 
+    def test_history_output_directory_template_allows_output_root_token(self):
+        self.assertTrue(
+            export.validate_history_output_directory_template(
+                export.OUTPUT_DIRECTORY_TOKEN + "/history"
+            )
+        )
+        self.assertTrue(
+            export.validate_history_output_directory_template(
+                export.DOCUMENT_DIRECTORY_TOKEN + "/../history"
+            )
+        )
+        self.assertFalse(
+            export.validate_output_directory_template(export.OUTPUT_DIRECTORY_TOKEN + "/history")
+        )
+        self.assertFalse(export.validate_history_output_directory_template("{unknown}/history"))
+
     def test_document_dir_token_allows_parent_segments(self):
         options = export.ExportOptions(
             True,
@@ -850,6 +965,50 @@ class AutoBodyExportCoreTests(unittest.TestCase):
         self.assertEqual(
             export.normalize_document_path(root),
             export.normalize_document_path(r"C:\projects\export"),
+        )
+
+    def test_history_output_directory_allows_parent_segments(self):
+        options = export.ExportOptions(
+            True,
+            False,
+            False,
+            enabled=True,
+            history_output_directory=export.DOCUMENT_DIRECTORY_TOKEN + "/../history",
+        )
+
+        history_directory = export.resolve_history_directory(
+            r"C:\projects\one\sample.FCStd",
+            r"C:\exports\sample",
+            r"C:\exports\sample\step",
+            "step",
+            options,
+        )
+
+        self.assertEqual(
+            export.normalize_document_path(history_directory),
+            export.normalize_document_path(r"C:\projects\history\step"),
+        )
+
+    def test_history_output_directory_can_use_output_root(self):
+        options = export.ExportOptions(
+            True,
+            False,
+            False,
+            enabled=True,
+            history_output_directory=export.OUTPUT_DIRECTORY_TOKEN + "/history",
+        )
+
+        history_directory = export.resolve_history_directory(
+            r"C:\projects\one\sample.FCStd",
+            r"C:\exports\sample",
+            r"C:\exports\sample\stl",
+            "stl",
+            options,
+        )
+
+        self.assertEqual(
+            export.normalize_document_path(history_directory),
+            export.normalize_document_path(r"C:\exports\sample\history\stl"),
         )
 
     def test_document_parent_dir_token_uses_parent_directory(self):
@@ -1034,6 +1193,7 @@ class AutoBodyExportCoreTests(unittest.TestCase):
             custom_output_directory=r"C:\exports",
             filename_template="{document}_{name}",
             history_limit=7,
+            history_output_directory=export.DOCUMENT_DIRECTORY_TOKEN + "/history",
             stl_linear_deflection=0.25,
             stl_angular_deflection=0.75,
             show_progress=False,

@@ -62,6 +62,16 @@ _JA = {
     ),
     "History versions to keep": "保持する履歴世代数",
     "Use 0 to replace files without keeping history.": ("0の場合は履歴を保存せず置き換えます。"),
+    "History output directory": "履歴の保存先ディレクトリ",
+    (
+        "Leave blank to use old_versions beside each format. Custom history "
+        "directories create step and stl subdirectories automatically. "
+        "Use {output_dir} for the resolved export root."
+    ): (
+        "空欄の場合は各形式の隣の old_versions を使用します。履歴保存先を指定すると、"
+        "その配下に step と stl サブディレクトリを自動作成します。"
+        "解決後の出力ルートには {output_dir} を使用できます。"
+    ),
     "Skip exports when geometry and settings are unchanged": (
         "形状と設定が未変更の場合は出力を省略する"
     ),

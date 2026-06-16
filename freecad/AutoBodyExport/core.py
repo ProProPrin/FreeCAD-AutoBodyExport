@@ -27,6 +27,7 @@ OUTPUT_MODE_KEY = "OutputMode"
 CUSTOM_OUTPUT_DIRECTORY_KEY = "CustomOutputDirectory"
 FILENAME_TEMPLATE_KEY = "FilenameTemplate"
 HISTORY_LIMIT_KEY = "HistoryLimit"
+HISTORY_OUTPUT_DIRECTORY_KEY = "HistoryOutputDirectory"
 STL_USE_FREECAD_SETTINGS_KEY = "STLUseFreeCADSettings"
 STL_LINEAR_DEFLECTION_KEY = "STLLinearDeflection"
 STL_ANGULAR_DEFLECTION_KEY = "STLAngularDeflection"
@@ -37,8 +38,11 @@ DEFAULT_FILENAME_TEMPLATE = "{document}_{part}_{target}"
 MAX_FILENAME_STEM_LENGTH = 180
 DOCUMENT_DIRECTORY_FIELD = "document_dir"
 DOCUMENT_PARENT_DIRECTORY_FIELD = "document_parent_dir"
+OUTPUT_DIRECTORY_FIELD = "output_dir"
 DOCUMENT_DIRECTORY_TOKEN = "{" + DOCUMENT_DIRECTORY_FIELD + "}"
 DOCUMENT_PARENT_DIRECTORY_TOKEN = "{" + DOCUMENT_PARENT_DIRECTORY_FIELD + "}"
+OUTPUT_DIRECTORY_TOKEN = "{" + OUTPUT_DIRECTORY_FIELD + "}"
+DEFAULT_HISTORY_DIRECTORY_NAME = "old_versions"
 OUTPUT_MODE_DOCUMENT = "document"
 OUTPUT_MODE_CUSTOM = "custom"
 OUTPUT_MODE_INHERIT = "inherit"
@@ -75,6 +79,11 @@ FILENAME_TEMPLATE_FIELDS = {"document", "part", "target", "name"}
 OUTPUT_DIRECTORY_TEMPLATE_FIELDS = {
     DOCUMENT_DIRECTORY_FIELD,
     DOCUMENT_PARENT_DIRECTORY_FIELD,
+}
+HISTORY_OUTPUT_DIRECTORY_TEMPLATE_FIELDS = {
+    DOCUMENT_DIRECTORY_FIELD,
+    DOCUMENT_PARENT_DIRECTORY_FIELD,
+    OUTPUT_DIRECTORY_FIELD,
 }
 
 
@@ -242,6 +251,7 @@ class ExportOptions:
     custom_output_directory: str = ""
     filename_template: str = DEFAULT_FILENAME_TEMPLATE
     history_limit: int = 20
+    history_output_directory: str = ""
     stl_linear_deflection: float = DEFAULT_STL_LINEAR_DEFLECTION
     stl_angular_deflection: float = DEFAULT_STL_ANGULAR_DEFLECTION
     show_progress: bool = True
@@ -301,6 +311,11 @@ def load_export_options() -> ExportOptions:
     filename_template = params.GetString(FILENAME_TEMPLATE_KEY, DEFAULT_FILENAME_TEMPLATE)
     if not validate_filename_template(filename_template):
         filename_template = DEFAULT_FILENAME_TEMPLATE
+    history_output_directory = params.GetString(HISTORY_OUTPUT_DIRECTORY_KEY, "")
+    if history_output_directory and not validate_history_output_directory_template(
+        history_output_directory
+    ):
+        history_output_directory = ""
     return ExportOptions(
         export_step=params.GetBool(EXPORT_STEP_KEY, True),
         export_stl=params.GetBool(EXPORT_STL_KEY, False),
@@ -310,6 +325,7 @@ def load_export_options() -> ExportOptions:
         custom_output_directory=params.GetString(CUSTOM_OUTPUT_DIRECTORY_KEY, ""),
         filename_template=filename_template,
         history_limit=max(0, params.GetInt(HISTORY_LIMIT_KEY, 20)),
+        history_output_directory=history_output_directory,
         stl_linear_deflection=max(
             0.001,
             params.GetFloat(STL_LINEAR_DEFLECTION_KEY, DEFAULT_STL_LINEAR_DEFLECTION),
@@ -334,6 +350,7 @@ def save_export_options(options: ExportOptions) -> None:
     params.SetString(CUSTOM_OUTPUT_DIRECTORY_KEY, options.custom_output_directory)
     params.SetString(FILENAME_TEMPLATE_KEY, options.filename_template)
     params.SetInt(HISTORY_LIMIT_KEY, max(0, options.history_limit))
+    params.SetString(HISTORY_OUTPUT_DIRECTORY_KEY, options.history_output_directory)
     params.SetFloat(STL_LINEAR_DEFLECTION_KEY, max(0.001, options.stl_linear_deflection))
     params.SetFloat(STL_ANGULAR_DEFLECTION_KEY, max(0.01, options.stl_angular_deflection))
     params.SetBool(SHOW_PROGRESS_KEY, options.show_progress)
@@ -634,9 +651,7 @@ def reconcile_document_state(
             managed_output_roots=(
                 set(previous.managed_output_roots) if previous is not None else set()
             ),
-            output_mode=(
-                previous.output_mode if previous is not None else OUTPUT_MODE_INHERIT
-            ),
+            output_mode=(previous.output_mode if previous is not None else OUTPUT_MODE_INHERIT),
             custom_output_directory=(
                 previous.custom_output_directory if previous is not None else ""
             ),
@@ -684,14 +699,14 @@ def validate_filename_template(template: str) -> bool:
     return bool(fields)
 
 
-def validate_output_directory_template(template: str) -> bool:
+def _validate_directory_template(template: str, allowed_fields: Set[str]) -> bool:
     if not isinstance(template, str):
         return False
     try:
         for _, field_name, format_spec, conversion in string.Formatter().parse(template):
             if field_name is None:
                 continue
-            if field_name not in OUTPUT_DIRECTORY_TEMPLATE_FIELDS:
+            if field_name not in allowed_fields:
                 return False
             if format_spec or conversion:
                 return False
@@ -700,14 +715,32 @@ def validate_output_directory_template(template: str) -> bool:
     return True
 
 
+def validate_output_directory_template(template: str) -> bool:
+    return _validate_directory_template(template, OUTPUT_DIRECTORY_TEMPLATE_FIELDS)
+
+
+def validate_history_output_directory_template(template: str) -> bool:
+    return _validate_directory_template(template, HISTORY_OUTPUT_DIRECTORY_TEMPLATE_FIELDS)
+
+
 def output_directory_uses_template(template: str) -> bool:
     try:
         return any(
-            field_name is not None
-            for _, field_name, _, _ in string.Formatter().parse(template)
+            field_name is not None for _, field_name, _, _ in string.Formatter().parse(template)
         )
     except ValueError:
         return True
+
+
+def _directory_template_values(filepath: str, output_root: Optional[str] = None) -> Dict[str, str]:
+    document_directory = os.path.dirname(os.path.abspath(filepath))
+    values = {
+        DOCUMENT_DIRECTORY_FIELD: document_directory,
+        DOCUMENT_PARENT_DIRECTORY_FIELD: os.path.dirname(document_directory),
+    }
+    if output_root is not None:
+        values[OUTPUT_DIRECTORY_FIELD] = os.path.abspath(os.path.normpath(output_root))
+    return values
 
 
 def _resolve_custom_output_directory(template: str, filepath: str) -> str:
@@ -718,14 +751,21 @@ def _resolve_custom_output_directory(template: str, filepath: str) -> str:
             "Document-adjacent output will be used.\n"
         )
         return os.path.dirname(os.path.abspath(filepath))
-    document_directory = os.path.dirname(os.path.abspath(filepath))
-    document_parent_directory = os.path.dirname(document_directory)
-    rendered = expanded.format(
-        **{
-            DOCUMENT_DIRECTORY_FIELD: document_directory,
-            DOCUMENT_PARENT_DIRECTORY_FIELD: document_parent_directory,
-        }
-    )
+    rendered = expanded.format(**_directory_template_values(filepath))
+    return os.path.abspath(os.path.normpath(rendered))
+
+
+def resolve_history_output_root(template: str, filepath: str, output_root: str) -> str:
+    expanded = os.path.expandvars(os.path.expanduser(template.strip()))
+    if not expanded:
+        return ""
+    if not validate_history_output_directory_template(expanded):
+        App.Console.PrintWarning(
+            "Auto Body Export: The history directory template is invalid. "
+            "Default old_versions history will be used.\n"
+        )
+        return ""
+    rendered = expanded.format(**_directory_template_values(filepath, output_root))
     return os.path.abspath(os.path.normpath(rendered))
 
 
@@ -793,25 +833,52 @@ def latest_export_path(directory: str, stem: str, extension: str) -> str:
     return os.path.join(directory, f"{stem}.{extension}")
 
 
-def next_old_version_number(directory: str) -> int:
-    old_versions_directory = os.path.join(directory, "old_versions")
-    if not os.path.isdir(old_versions_directory):
+def default_history_directory(export_directory: str) -> str:
+    return os.path.join(export_directory, DEFAULT_HISTORY_DIRECTORY_NAME)
+
+
+def resolve_history_directory(
+    filepath: str,
+    output_root: str,
+    export_directory: str,
+    extension: str,
+    options: ExportOptions,
+) -> str:
+    history_root = resolve_history_output_root(
+        options.history_output_directory,
+        filepath,
+        output_root,
+    )
+    if history_root:
+        return os.path.join(history_root, extension.lower().lstrip("."))
+    return default_history_directory(export_directory)
+
+
+def next_archive_version_number(history_directory: str) -> int:
+    if not os.path.isdir(history_directory):
         return 0
     version_pattern = re.compile(r"^v(?P<version>[0-9]+)$", re.IGNORECASE)
     versions = []
-    for name in os.listdir(old_versions_directory):
-        path = os.path.join(old_versions_directory, name)
+    for name in os.listdir(history_directory):
+        path = os.path.join(history_directory, name)
         match = version_pattern.match(name)
         if match is not None and os.path.isdir(path):
             versions.append(int(match.group("version")))
     return max(versions) + 1 if versions else 0
 
 
-def archived_export_path(output_path: str, version: int) -> str:
+def next_old_version_number(directory: str) -> int:
+    return next_archive_version_number(default_history_directory(directory))
+
+
+def archived_export_path(
+    output_path: str, version: int, history_directory: Optional[str] = None
+) -> str:
     directory = os.path.dirname(output_path)
     filename = os.path.basename(output_path)
     stem, extension = os.path.splitext(filename)
-    archive_directory = os.path.join(directory, "old_versions", f"v{version}")
+    archive_root = history_directory or default_history_directory(directory)
+    archive_directory = os.path.join(archive_root, f"v{version}")
     os.makedirs(archive_directory, exist_ok=True)
     return os.path.join(
         archive_directory,
@@ -820,15 +887,19 @@ def archived_export_path(output_path: str, version: int) -> str:
 
 
 def replace_latest_export(
-    temporary_path: str, output_path: str, version: Optional[int]
+    temporary_path: str,
+    output_path: str,
+    version: Optional[int],
+    history_directory: Optional[str] = None,
 ) -> Optional[str]:
     if not os.path.exists(output_path):
         os.replace(temporary_path, output_path)
         return None
 
+    archive_root = history_directory or default_history_directory(os.path.dirname(output_path))
     if version is None:
-        version = next_old_version_number(os.path.dirname(output_path))
-    archive_path = archived_export_path(output_path, version)
+        version = next_archive_version_number(archive_root)
+    archive_path = archived_export_path(output_path, version, archive_root)
     os.replace(output_path, archive_path)
     try:
         os.replace(temporary_path, output_path)
@@ -838,26 +909,29 @@ def replace_latest_export(
     return archive_path
 
 
-def prune_old_versions(directory: str, history_limit: int) -> None:
-    old_versions_directory = os.path.join(directory, "old_versions")
-    if not os.path.isdir(old_versions_directory):
+def prune_archive_versions(history_directory: str, history_limit: int) -> None:
+    if not os.path.isdir(history_directory):
         return
     version_pattern = re.compile(r"^v(?P<version>[0-9]+)$", re.IGNORECASE)
     version_directories = []
-    for name in os.listdir(old_versions_directory):
+    for name in os.listdir(history_directory):
         match = version_pattern.match(name)
-        path = os.path.join(old_versions_directory, name)
+        path = os.path.join(history_directory, name)
         if match is not None and os.path.isdir(path):
             version_directories.append((int(match.group("version")), path))
     version_directories.sort()
     remove_count = max(0, len(version_directories) - max(0, history_limit))
     for _, path in version_directories[:remove_count]:
         resolved = os.path.abspath(path)
-        allowed_root = os.path.abspath(old_versions_directory) + os.sep
+        allowed_root = os.path.abspath(history_directory) + os.sep
         if resolved.startswith(allowed_root):
             shutil.rmtree(resolved)
-    if not os.listdir(old_versions_directory):
-        os.rmdir(old_versions_directory)
+    if not os.listdir(history_directory):
+        os.rmdir(history_directory)
+
+
+def prune_old_versions(directory: str, history_limit: int) -> None:
+    prune_archive_versions(default_history_directory(directory), history_limit)
 
 
 def _effective_output_settings(
@@ -1177,6 +1251,7 @@ def _replace_with_history(
     output_path: str,
     history_limit: int,
     archive_versions: Dict[str, int],
+    history_directory: Optional[str] = None,
 ) -> Optional[str]:
     if not os.path.exists(output_path):
         os.replace(temporary_path, output_path)
@@ -1184,28 +1259,29 @@ def _replace_with_history(
     if history_limit <= 0:
         os.replace(temporary_path, output_path)
         return None
-    directory = os.path.dirname(output_path)
+    archive_root = history_directory or default_history_directory(os.path.dirname(output_path))
     archive_version = archive_versions.setdefault(
-        path_comparison_key(directory), next_old_version_number(directory)
+        path_comparison_key(archive_root), next_archive_version_number(archive_root)
     )
-    return replace_latest_export(temporary_path, output_path, archive_version)
+    return replace_latest_export(temporary_path, output_path, archive_version, archive_root)
 
 
 def _retire_managed_file(
     path: str,
     history_limit: int,
     archive_versions: Dict[str, int],
+    history_directory: Optional[str] = None,
 ) -> Optional[str]:
     if not os.path.isfile(path):
         return None
     if history_limit <= 0:
         os.remove(path)
         return None
-    directory = os.path.dirname(path)
+    archive_root = history_directory or default_history_directory(os.path.dirname(path))
     version = archive_versions.setdefault(
-        path_comparison_key(directory), next_old_version_number(directory)
+        path_comparison_key(archive_root), next_archive_version_number(archive_root)
     )
-    archive_path = archived_export_path(path, version)
+    archive_path = archived_export_path(path, version, archive_root)
     os.replace(path, archive_path)
     return archive_path
 
@@ -1277,7 +1353,7 @@ def _run_export_selected_targets(
     if progress is not None and hasattr(progress, "start"):
         progress.start(len(plans) * len(formats))
     archive_versions: Dict[str, int] = {}
-    touched_directories: Set[str] = set()
+    touched_history_directories: Set[str] = set()
 
     for plan in plans:
         for extension in formats:
@@ -1293,6 +1369,13 @@ def _run_export_selected_targets(
                 result.failures.append("Export canceled by the user")
                 break
             export_directory = os.path.join(output_root, extension)
+            history_directory = resolve_history_directory(
+                filepath,
+                output_root,
+                export_directory,
+                extension,
+                options,
+            )
             output_path = latest_export_path(export_directory, plan.stem, extension)
             normalized_output_path = normalize_document_path(output_path)
             output_path_key = path_comparison_key(output_path)
@@ -1306,7 +1389,7 @@ def _run_export_selected_targets(
             ):
                 result.generated_files.add(normalized_output_path)
                 result.export_signatures[normalized_output_path] = signature
-                touched_directories.add(export_directory)
+                touched_history_directories.add(history_directory)
                 App.Console.PrintMessage(f"Auto Body Export: Unchanged, skipped -> {output_path}\n")
                 continue
 
@@ -1324,6 +1407,7 @@ def _run_export_selected_targets(
                     output_path,
                     options.history_limit,
                     archive_versions,
+                    history_directory,
                 )
                 temporary_path = ""
                 if archive_path is not None:
@@ -1335,7 +1419,7 @@ def _run_export_selected_targets(
                 )
                 result.generated_files.add(normalized_output_path)
                 result.export_signatures[normalized_output_path] = signature
-                touched_directories.add(export_directory)
+                touched_history_directories.add(history_directory)
             except Exception as error:
                 result.failures.append(f"{plan.display_label} ({extension.upper()}): {error}")
             finally:
@@ -1354,14 +1438,26 @@ def _run_export_selected_targets(
         }
         for stale_path in sorted(stale_files):
             try:
+                stale_extension = os.path.splitext(stale_path)[1].lower().lstrip(".")
+                stale_output_root = _managed_output_root(stale_path, allowed_output_roots)
+                stale_history_directory = resolve_history_directory(
+                    filepath,
+                    stale_output_root or output_root,
+                    os.path.dirname(stale_path),
+                    stale_extension,
+                    options,
+                )
                 archive_path = _retire_managed_file(
-                    stale_path, options.history_limit, archive_versions
+                    stale_path,
+                    options.history_limit,
+                    archive_versions,
+                    stale_history_directory,
                 )
                 if archive_path is not None:
                     App.Console.PrintMessage(
                         f"Auto Body Export: Archived obsolete file -> {archive_path}\n"
                     )
-                touched_directories.add(os.path.dirname(stale_path))
+                touched_history_directories.add(stale_history_directory)
             except OSError as error:
                 result.failures.append(f"Failed to retire obsolete file {stale_path}: {error}")
     if result.failures or result.canceled:
@@ -1371,9 +1467,9 @@ def _run_export_selected_targets(
             if path not in result.export_signatures and path_key in previous_signatures_by_key:
                 result.export_signatures[path] = previous_signatures_by_key[path_key]
 
-    for directory in touched_directories:
+    for directory in touched_history_directories:
         try:
-            prune_old_versions(directory, options.history_limit)
+            prune_archive_versions(directory, options.history_limit)
         except OSError as error:
             result.failures.append(f"Failed to prune export history in {directory}: {error}")
     result.managed_output_roots = {
@@ -1555,9 +1651,7 @@ class SelectionDialog:
         )
         self.document_custom_output_edit.setText(default_custom_directory)
         self.document_custom_output_button = QtWidgets.QPushButton(tr("Browse..."))
-        self.document_custom_output_button.clicked.connect(
-            self._browse_document_output_directory
-        )
+        self.document_custom_output_button.clicked.connect(self._browse_document_output_directory)
         output_layout.addWidget(self.document_custom_output_edit, 1, 0, 1, 2)
         output_layout.addWidget(self.document_custom_output_button, 1, 2)
 
@@ -2014,8 +2108,7 @@ class SelectionDialog:
                     self.dialog,
                     tr("Auto Body Export"),
                     tr(
-                        "The output directory may only use {document_dir} "
-                        "or {document_parent_dir}."
+                        "The output directory may only use {document_dir} or {document_parent_dir}."
                     ),
                 )
                 return
