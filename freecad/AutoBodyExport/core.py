@@ -87,6 +87,19 @@ HISTORY_OUTPUT_DIRECTORY_TEMPLATE_FIELDS = {
 }
 
 
+def normalize_document_output_settings(
+    output_mode: object, custom_output_directory: object
+) -> Tuple[str, str]:
+    if output_mode not in DOCUMENT_OUTPUT_MODES:
+        output_mode = OUTPUT_MODE_INHERIT
+    if not isinstance(custom_output_directory, str):
+        custom_output_directory = ""
+    custom_output_directory = custom_output_directory.strip()
+    if output_mode != OUTPUT_MODE_CUSTOM:
+        custom_output_directory = ""
+    return output_mode, custom_output_directory
+
+
 @dataclass(frozen=True)
 class PartInfo:
     object_name: str
@@ -209,10 +222,9 @@ class DocumentState:
             export_signatures = {}
         if not isinstance(managed_output_roots, list):
             managed_output_roots = []
-        if output_mode not in DOCUMENT_OUTPUT_MODES:
-            output_mode = OUTPUT_MODE_INHERIT
-        if not isinstance(custom_output_directory, str):
-            custom_output_directory = ""
+        output_mode, custom_output_directory = normalize_document_output_settings(
+            output_mode, custom_output_directory
+        )
         return cls(
             path=path,
             known_item_ids={item for item in known_item_ids if isinstance(item, str)},
@@ -257,6 +269,19 @@ class ExportOptions:
     show_progress: bool = True
     skip_unchanged: bool = True
     stl_use_freecad_settings: bool = True
+
+
+def document_custom_output_default(
+    options: ExportOptions,
+    document_output_mode: str,
+    document_custom_output_directory: str,
+) -> str:
+    output_mode, custom_output_directory = normalize_document_output_settings(
+        document_output_mode, document_custom_output_directory
+    )
+    if output_mode == OUTPUT_MODE_CUSTOM and custom_output_directory:
+        return custom_output_directory
+    return options.custom_output_directory
 
 
 @dataclass(frozen=True)
@@ -639,6 +664,11 @@ def reconcile_document_state(
         target_groups = normalize_target_groups(inventory, target_groups)
         selected_target_ids = synchronize_group_selection(selected_target_ids, target_groups)
 
+    previous_output_mode, previous_custom_output_directory = normalize_document_output_settings(
+        previous.output_mode if previous is not None else OUTPUT_MODE_INHERIT,
+        previous.custom_output_directory if previous is not None else "",
+    )
+
     return (
         DocumentState(
             path=normalized_path,
@@ -651,10 +681,8 @@ def reconcile_document_state(
             managed_output_roots=(
                 set(previous.managed_output_roots) if previous is not None else set()
             ),
-            output_mode=(previous.output_mode if previous is not None else OUTPUT_MODE_INHERIT),
-            custom_output_directory=(
-                previous.custom_output_directory if previous is not None else ""
-            ),
+            output_mode=previous_output_mode,
+            custom_output_directory=previous_custom_output_directory,
         ),
         new_ids,
     )
@@ -1644,10 +1672,10 @@ class SelectionDialog:
 
         self.document_custom_output_edit = QtWidgets.QLineEdit()
         self.document_custom_output_edit.setPlaceholderText(DOCUMENT_DIRECTORY_TOKEN + "/export")
-        default_custom_directory = (
-            document_custom_output_directory
-            if document_custom_output_directory
-            else options.custom_output_directory
+        default_custom_directory = document_custom_output_default(
+            options,
+            document_output_mode,
+            document_custom_output_directory,
         )
         self.document_custom_output_edit.setText(default_custom_directory)
         self.document_custom_output_button = QtWidgets.QPushButton(tr("Browse..."))
@@ -2125,6 +2153,10 @@ class SelectionDialog:
             for target_id, item in self._target_items.items()
             if item.checkState(0) == self.QtCore.Qt.Checked
         }
+        output_mode, custom_output_directory = normalize_document_output_settings(
+            self.document_output_mode_combo.currentData(),
+            self.document_custom_output_edit.text(),
+        )
         return DialogResult(
             accepted=accepted,
             selected_target_ids=selected_target_ids,
@@ -2133,8 +2165,8 @@ class SelectionDialog:
             export_stl=self.stl_checkbox.isChecked(),
             show_dialog=not self.hide_dialog_checkbox.isChecked(),
             document_enabled=self.document_enabled_checkbox.isChecked(),
-            output_mode=self.document_output_mode_combo.currentData(),
-            custom_output_directory=self.document_custom_output_edit.text().strip(),
+            output_mode=output_mode,
+            custom_output_directory=custom_output_directory,
         )
 
 
@@ -2242,8 +2274,10 @@ def process_saved_document(document, filepath: str) -> None:
         reconciled_state.selected_target_ids = result.selected_target_ids
         reconciled_state.target_groups = result.target_groups
         reconciled_state.enabled = result.document_enabled
-        reconciled_state.output_mode = result.output_mode
-        reconciled_state.custom_output_directory = result.custom_output_directory
+        (
+            reconciled_state.output_mode,
+            reconciled_state.custom_output_directory,
+        ) = normalize_document_output_settings(result.output_mode, result.custom_output_directory)
         options = dataclass_replace(
             options,
             export_step=result.export_step,

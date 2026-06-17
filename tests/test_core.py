@@ -113,6 +113,65 @@ class AutoBodyExportCoreTests(unittest.TestCase):
         self.assertEqual(state.selected_target_ids, {"body:Body"})
         self.assertFalse(state.target_groups)
 
+    def test_reconcile_clears_stale_inherited_custom_output_directory(self):
+        previous = export.DocumentState(
+            path=r"C:\models\sample.FCStd",
+            known_item_ids={"body:Body"},
+            selected_target_ids={"body:Body"},
+            output_mode=export.OUTPUT_MODE_INHERIT,
+            custom_output_directory=r"C:\old-export",
+        )
+        inventory = export.Inventory(
+            parts=(),
+            bodies=(export.BodyInfo("Body", "Body", None),),
+        )
+
+        state, _ = export.reconcile_document_state(previous.path, inventory, previous)
+
+        self.assertEqual(state.output_mode, export.OUTPUT_MODE_INHERIT)
+        self.assertEqual(state.custom_output_directory, "")
+
+    def test_document_state_load_clears_stale_inherited_custom_output_directory(self):
+        state = export.DocumentState.from_json_value(
+            {
+                "path": r"C:\models\sample.FCStd",
+                "known_item_ids": ["body:Body"],
+                "selected_target_ids": ["body:Body"],
+                "output_mode": export.OUTPUT_MODE_INHERIT,
+                "custom_output_directory": r"C:\old-export",
+            }
+        )
+
+        self.assertIsNotNone(state)
+        self.assertEqual(state.output_mode, export.OUTPUT_MODE_INHERIT)
+        self.assertEqual(state.custom_output_directory, "")
+
+    def test_document_custom_output_default_tracks_global_for_inherited_state(self):
+        options = export.ExportOptions(
+            True,
+            False,
+            False,
+            output_mode=export.OUTPUT_MODE_CUSTOM,
+            custom_output_directory=r"C:\new-export",
+        )
+
+        self.assertEqual(
+            export.document_custom_output_default(
+                options,
+                export.OUTPUT_MODE_INHERIT,
+                r"C:\old-export",
+            ),
+            r"C:\new-export",
+        )
+        self.assertEqual(
+            export.document_custom_output_default(
+                options,
+                export.OUTPUT_MODE_CUSTOM,
+                r"C:\document-export",
+            ),
+            r"C:\document-export",
+        )
+
     def test_inventory_includes_part_objects_but_excludes_body_members(self):
         document = App.newDocument("ObjectInventoryTest")
         part = document.addObject("App::Part", "Part")
